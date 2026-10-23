@@ -49,6 +49,7 @@ object Bridge {
     external fun nativeQueryConfiguration(): String
     external fun nativeSubscribeLogcat(callback: LogcatInterface)
     external fun nativeCoreVersion(): String
+    external fun nativeTailscaleCommand(command: String, content: String): String
 
     external fun nativeSetAgeSecretKey(key: String?)
     external fun nativeGenX25519KeyPair(): String?

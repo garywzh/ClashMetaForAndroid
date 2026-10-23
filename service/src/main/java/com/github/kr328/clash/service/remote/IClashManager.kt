@@ -6,6 +6,8 @@ import com.github.kr328.kaidl.BinderInterface
 
 @BinderInterface
 interface IClashManager {
+    suspend fun tailscaleCommand(command: String, content: String): String
+
     fun queryTunnelState(): TunnelState
     fun queryTrafficTotal(): Long
     fun queryProxyGroupNames(excludeNotSelectable: Boolean): List<String>

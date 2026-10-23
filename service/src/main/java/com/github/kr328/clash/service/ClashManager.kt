@@ -18,6 +18,13 @@ class ClashManager(private val context: Context) : IClashManager,
     private val store = ServiceStore(context)
     private var logReceiver: ReceiveChannel<LogMessage>? = null
 
+    override suspend fun tailscaleCommand(command: String, content: String): String =
+        withContext(Dispatchers.IO) {
+            val result = Clash.tailscaleCommand(command, content)
+            if (command == "settings") context.sendOverrideChanged()
+            result
+        }
+
     override fun queryTunnelState(): TunnelState {
         return Clash.queryTunnelState()
     }

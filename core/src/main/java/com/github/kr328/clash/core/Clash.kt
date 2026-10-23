@@ -15,6 +15,9 @@ import java.io.File
 import java.net.InetSocketAddress
 
 object Clash {
+    fun tailscaleCommand(command: String, content: String = ""): String =
+        Bridge.nativeTailscaleCommand(command, content)
+
     enum class OverrideSlot {
         Persist, Session
     }

@@ -609,3 +609,11 @@ Java_com_github_kr328_clash_core_bridge_Bridge_nativeCoreVersion(JNIEnv *env, jo
 
     return new_string(Version);
 }
+
+JNIEXPORT jstring JNICALL
+Java_com_github_kr328_clash_core_bridge_Bridge_nativeTailscaleCommand(JNIEnv *env, jobject thiz, jstring command, jstring content) {
+    scoped_string cmd = get_string(command);
+    scoped_string data = get_string(content);
+    scoped_string response = tailscaleCommand(cmd, data);
+    return new_string(response);
+}

@@ -9,6 +9,7 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.kotlin.serialization.json)
     compileOnly(project(":hideapi"))
 
     implementation(project(":core"))

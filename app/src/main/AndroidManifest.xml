@@ -102,6 +102,10 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".TailscaleActivity"
+            android:exported="false"
+            android:label="@string/tailscale" />
+        <activity
             android:name=".ApkBrokenActivity"
             android:configChanges="uiMode"
             android:exported="false"

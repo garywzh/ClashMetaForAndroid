@@ -31,7 +31,6 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
 
         val close = install(CloseModule(self))
         val tun = install(TunModule(self))
-        val config = install(ConfigurationModule(self))
         val network = install(NetworkObserveModule(self))
 
         if (store.dynamicNotification)
@@ -45,6 +44,9 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
 
         try {
             tun.open()
+
+            // Profile loading can eagerly start tsnet; socket protection must exist first.
+            val config = install(ConfigurationModule(self))
 
             while (isActive) {
                 val quit = select<Boolean> {
@@ -154,6 +156,11 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
             }
 
             // Access Control
+            // Keep Tailnet IPv6 inside the VPN even when private networks bypass it.
+            if (store.allowIpv6 && store.bypassPrivateNetwork) {
+                addRoute("fd7a:115c:a1e0::", 48)
+            }
+
             when (store.accessControlMode) {
                 AccessControlMode.AcceptAll -> Unit
                 AccessControlMode.AcceptSelected -> {

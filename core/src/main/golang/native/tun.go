@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"cfa/native/app"
+	"cfa/native/tailnet"
 	"cfa/native/tun"
 )
 
@@ -99,6 +100,8 @@ func startTun(fd C.int, stack, gateway, portal, dns C.c_string, callback unsafe.
 
 //export stopTun
 func stopTun() {
+	// Close userspace transports before removing Android's socket-protection hook.
+	tailnet.Stop()
 	rTunLock.Lock()
 	defer rTunLock.Unlock()
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cfa/native/app"
+	"cfa/native/tailnet"
 
 	"github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/config"
@@ -59,6 +60,10 @@ func Parse(rawConfig *config.RawConfig) (*config.Config, error) {
 }
 
 func Load(path string) error {
+	return tailnet.WithConfiguration(func() error { return load(path) })
+}
+
+func load(path string) error {
 	rawCfg, err := UnmarshalAndPatch(path)
 	if err != nil {
 		log.Errorln("Load %s: %s", path, err.Error())
@@ -76,6 +81,9 @@ func Load(path string) error {
 	}
 
 	// like hub.Parse()
+	if err = tailnet.Attach(cfg); err != nil {
+		return err
+	}
 	hub.ApplyConfig(cfg)
 
 	app.ApplySubtitlePattern(rawCfg.ClashForAndroid.UiSubtitlePattern)

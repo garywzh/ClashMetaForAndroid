@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tailscale">Tailscale</string>
+    <string name="tailscale_enable">Enable Tailscale</string>
+    <string name="tailscale_status">Connection</string>
+    <string name="tailscale_address">Tailnet Address</string>
+    <string name="tailscale_login">Log In With Browser</string>
+    <string name="tailscale_logout">Log Out</string>
+    <string name="tailscale_logout_confirm">Log out of Tailscale? Other Tailnet devices will lose access to this node.</string>
+    <string name="tailscale_disabled">Disabled</string>
+    <string name="tailscale_connected">Connected</string>
+    <string name="tailscale_needs_login">Waiting for login</string>
+    <string name="tailscale_needs_approval">Approve this device in the Tailscale admin console</string>
+    <string name="tailscale_start_clash">Start Clash to connect</string>
+    <string name="tailscale_connecting">Connecting</string>
+    <string name="tailscale_mcp">MCP</string>
+    <string name="tailscale_mcp_forward">Share Local MCP on Tailnet</string>
+    <string name="tailscale_mcp_summary">Tailnet :8080 → 127.0.0.1:8080. Keep Bearer authentication enabled in the MCP app.</string>
+    <string name="tailscale_scope">Routing</string>
+    <string name="tailscale_scope_summary">Automatic Tailnet routing and *.ts.net DNS in Rule mode. IPv6 needs the network IPv6 option. Subnet routers and exit nodes are not enabled. This node has its own IP, separate from the Tailscale app.</string>
+</resources>
