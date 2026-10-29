@@ -70,6 +70,7 @@ class TailscaleActivity : BaseActivity<TailscaleDesign>() {
                                 }
                             }
                             TailscaleDesign.Request.Refresh -> status = command("status")
+                            TailscaleDesign.Request.Taildrop -> startActivity(Intent(this@TailscaleActivity, TaildropActivity::class.java))
                         }
                         design.update(status)
                         if (status.error.isNotEmpty()) pendingLogin = false

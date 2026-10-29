@@ -106,6 +106,17 @@
             android:exported="false"
             android:label="@string/tailscale" />
         <activity
+            android:name=".TaildropActivity"
+            android:exported="true"
+            android:label="@string/taildrop">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".ApkBrokenActivity"
             android:configChanges="uiMode"
             android:exported="false"

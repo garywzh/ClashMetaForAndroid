@@ -18,4 +18,10 @@
     <string name="provider_files">Provider Files</string>
     <string name="profile_updater">Profile Updater</string>
     <string name="profile_updating">Profile Updating</string>
+
+    <string name="taildrop_notification_channel">Taildrop</string>
+    <string name="taildrop_notification_files">%1$d received files</string>
+    <string name="taildrop_notification_active">%1$d active transfers</string>
+    <string name="taildrop_notification_finished">%1$d transfers finished</string>
+    <string name="taildrop_notification_failed">%1$d transfers failed</string>
 </resources>

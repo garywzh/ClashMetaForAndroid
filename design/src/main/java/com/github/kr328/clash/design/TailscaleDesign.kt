@@ -19,6 +19,7 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
         data object ConfirmLogout : Request
         data object CopyAddress : Request
         data object Refresh : Request
+        data object Taildrop : Request
     }
 
     private val binding = DesignSettingsCommonBinding.inflate(context.layoutInflater, context.root, false)
@@ -67,6 +68,9 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
             routesRow = clickable(title = R.string.tailscale_subnet_routes) {
                 view.isClickable = false
                 view.isFocusable = false
+            }
+            clickable(title = R.string.taildrop) {
+                clicked { requests.trySend(Request.Taildrop) }
             }
             clickable(title = R.string.tailscale_scope, summary = R.string.tailscale_scope_summary) {
                 view.isClickable = false

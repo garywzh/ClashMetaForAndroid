@@ -63,6 +63,50 @@ this implementation. Existing per-app VPN access controls still apply.
   working LAN forwarding and return traffic. A successful node login is not a
   subnet connectivity test.
 
+## Taildrop
+
+Open **Settings > Tailscale > Taildrop** while the VPN is running and the node is
+logged in. The backend uses Tailscale's Taildrop PeerAPI, not an unrelated file
+server. The pinned MetaCubeX fork omits the implementation; CMFA ports the
+matching upstream v1.102.3 module without replacing its network adaptations.
+
+- **Send files** opens Android's document picker, then asks for an online
+  receiving device. Other apps can also share one or multiple content-URI files
+  to **Taildrop** using Android's share sheet. Bytes stream through owned file
+  descriptors, not JSON or a whole-file memory buffer. There are two concurrent
+  outgoing/export workers, at most 32 outstanding files and 100 recent results.
+  If the queue fills, unsent selections remain on the page for retry.
+- The **Inbox** lists completed received files. Choose **Save a copy**, **Share**
+  or **Delete**. Saving uses SAF, does not require broad storage permission and
+  never automatically deletes the inbox original, even after a successful copy.
+  A failed/cancelled export may leave an incomplete destination document; the
+  inbox original remains available for retry.
+- Sharing grants a read-only streaming content URI, not a private filesystem
+  path. Grants expire after an hour and cannot be reopened after a VPN/login
+  session change. Deleting an inbox file invalidates its share tokens. Consumers
+  that require a seekable file should use a saved copy instead of the stream.
+- The page shows receiving/sending/export progress and failures. Tap an active
+  row's **Cancel** action to stop it. The existing VPN service posts transfer and
+  inbox notifications when Android permits them; opening a notification returns
+  to Taildrop. Dismissed inbox notifications return only for new or changed files,
+  not peer changes, transfer progress or a temporary backend reconnect. Restarting
+  the VPN starts a new notification session and can remind about existing files.
+  A time-limited, renewed wake lock is held only during transfers.
+- Closing the page does not stop transfers. Stopping the VPN, logging out or
+  disabling Tailscale cancels outgoing/export operations. There is no separate
+  always-on service. Completed files and resumable partial files stay in private,
+  per-login staging under the node's storage directory, outside Android backup.
+  A failed send can be retried by selecting the source again; resumption uses
+  the original Taildrop checksum protocol when the receiver supports it. Jobs
+  themselves do not automatically restart after the VPN or app process stops.
+- Receive authorization remains upstream's signed-peer, same-user/untagged or
+  explicit file-send capability check, plus the administrator's file-sharing
+  capability. Filenames are validated; conflicts are renamed/deduplicated by
+  upstream rules. Receiving is limited to four simultaneous uploads and stops
+  before consuming the last 64 MiB of storage. Failed partial uploads expire
+  using upstream's one-hour cleanup delay. Completed inbox files are retained
+  until explicitly deleted, so they can still consume substantial storage.
+
 ## Lifecycle and storage
 
 - Settings: `files/clash/tailscale-settings.json`, mode 0600, atomic replacement.
@@ -83,7 +127,7 @@ this implementation. Existing per-app VPN access controls still apply.
 Run the host-side tests from `core/src/main/golang`:
 
 ```sh
-go test -race -tags 'foss,with_gvisor,cmfa' ./native/tailnet
+go test -race -tags 'foss,with_gvisor,cmfa' ./native/tailnet ./native/taildrop/...
 ```
 
 The tests cover subscription/DNS preservation, validation without startup,
@@ -91,6 +135,9 @@ reserved names, atomic private settings and backward compatibility, profile/serv
 lifetime, approved-subnet filtering, dynamic rule changes and domain resolution,
 IPv4/IPv6 destination validation, Android peer-change notifications, concurrent
 readers, UDP route withdrawal, transparent forwarding and cancellation.
+Taildrop tests additionally exercise the registered LocalAPI, in-process PeerAPI
+permissions and file round-trips, filename safety, restart/resumption, conflicts,
+receive progress, streaming jobs, cancellation, queue bounds and descriptor cleanup.
 
 Build with JDK 21, the SDK/NDK versions declared in Gradle, and the patched
 MetaCubeX Go toolchain used by `.github/workflows`. A local development build can
@@ -108,3 +155,11 @@ to a LAN destination, an unrelated private subnet, approval/revocation while the
 settings page is closed, option off/on, stop/start and profile reload, both private
 bypass settings, IPv6 when enabled, overlapping Wi-Fi subnets, and ACL denial. Check
 that ordinary internet routing and local MCP sharing remain unaffected.
+
+Taildrop device acceptance additionally requires bidirectional transfers with
+official Tailscale clients: small/large/empty files, non-ASCII and special-character
+filenames, multiple Android shares, SAF saves, receiving/share/delete actions,
+screen-off and background transfers, cancellation/retry, insufficient storage,
+ACL/capability denial and VPN stop/start. The in-process tests use simulated peers;
+they do not prove interoperability over a real Tailnet or all Android document
+provider/share-target behaviors.

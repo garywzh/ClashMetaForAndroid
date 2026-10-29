@@ -373,4 +373,27 @@
     <string name="shortcut_start_long">Start Clash service</string>
     <string name="shortcut_stop_short">Stop Clash</string>
     <string name="shortcut_stop_long">Stop Clash service</string>
+
+    <string name="taildrop">Taildrop</string>
+    <string name="taildrop_send">Send files</string>
+    <string name="taildrop_send_to">Send to</string>
+    <string name="taildrop_selected">%1$d files selected</string>
+    <string name="taildrop_start_vpn">Enable Tailscale, start the VPN and log in to send and receive files.</string>
+    <string name="taildrop_no_devices">No available receiving devices</string>
+    <string name="taildrop_transfers">Transfers</string>
+    <string name="taildrop_clear_finished">Clear finished transfers</string>
+    <string name="taildrop_no_transfers">No transfers</string>
+    <string name="taildrop_inbox">Inbox</string>
+    <string name="taildrop_empty">No received files</string>
+    <string name="taildrop_queued">Queued</string>
+    <string name="taildrop_sending">Sending</string>
+    <string name="taildrop_receiving">Receiving</string>
+    <string name="taildrop_saving">Saving</string>
+    <string name="taildrop_sent">Sent</string>
+    <string name="taildrop_saved">Exported</string>
+    <string name="taildrop_cancelled">Cancelled</string>
+    <string name="taildrop_failed">Transfer failed</string>
+    <string name="taildrop_save">Save a copy</string>
+    <string name="taildrop_share">Share</string>
+    <string name="taildrop_refresh">Refresh</string>
 </resources>

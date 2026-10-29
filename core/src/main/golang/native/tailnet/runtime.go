@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"cfa/native/taildrop"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,7 @@ type runtime struct {
 	mu        sync.Mutex
 	server    *tsnet.Server
 	forward   *forwarder
+	drop      *taildropSession
 	lastError string
 	subnets   atomic.Pointer[subnetSession]
 }
@@ -73,6 +75,9 @@ func (r *runtime) startLocked() error {
 		UserLogf:     func(format string, args ...any) { log.Infoln("[Tailscale] "+format, args...) },
 		Logf:         func(format string, args ...any) { log.Debugln("[Tailscale] "+format, args...) },
 	}
+	if err := taildrop.EnableStagingRoot(s.Dir); err != nil {
+		return err
+	}
 	if err := s.Start(); err != nil {
 		return err
 	}
@@ -91,6 +96,7 @@ func (r *runtime) startLocked() error {
 		return err
 	}
 	r.server = s
+	r.drop = newTaildropSession(lc)
 	ctx, cancel := context.WithCancel(context.Background())
 	subnets := &subnetSession{enabled: settings.AcceptRoutes, cancel: cancel}
 	r.subnets.Store(subnets)
@@ -100,6 +106,10 @@ func (r *runtime) startLocked() error {
 }
 
 func (r *runtime) stopLocked() {
+	if r.drop != nil {
+		r.drop.close()
+		r.drop = nil
+	}
 	if subnets := r.subnets.Swap(nil); subnets != nil {
 		subnets.close()
 	}
@@ -180,12 +190,16 @@ func Command(command, content string) Status {
 				}
 			}
 		} else {
+			if manager.drop != nil {
+				manager.drop.close()
+			}
 			if subnets := manager.subnets.Load(); subnets != nil {
 				subnets.setEnabled(false)
 				subnets.update(nil, nil)
 			}
 			manager.configureForwardLocked(false)
 			err = lc.Logout(ctx)
+			manager.drop = newTaildropSession(lc)
 		}
 	case "status":
 	case "routes":

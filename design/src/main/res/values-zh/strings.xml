@@ -282,4 +282,27 @@
     <string name="shortcut_start_long">启动 Clash 服务</string>
     <string name="shortcut_stop_short">停止 Clash</string>
     <string name="shortcut_stop_long">停止 Clash 服务</string>
+
+    <string name="taildrop">Taildrop</string>
+    <string name="taildrop_send">发送文件</string>
+    <string name="taildrop_send_to">发送到</string>
+    <string name="taildrop_selected">已选择 %1$d 个文件</string>
+    <string name="taildrop_start_vpn">启用 Tailscale、启动 VPN 并完成登录后即可收发文件。</string>
+    <string name="taildrop_no_devices">暂无可接收文件的在线设备</string>
+    <string name="taildrop_transfers">传输</string>
+    <string name="taildrop_clear_finished">清除已结束的传输</string>
+    <string name="taildrop_no_transfers">暂无传输</string>
+    <string name="taildrop_inbox">收件箱</string>
+    <string name="taildrop_empty">暂无收到的文件</string>
+    <string name="taildrop_queued">排队中</string>
+    <string name="taildrop_sending">发送中</string>
+    <string name="taildrop_receiving">接收中</string>
+    <string name="taildrop_saving">导出中</string>
+    <string name="taildrop_sent">已发送</string>
+    <string name="taildrop_saved">已导出</string>
+    <string name="taildrop_cancelled">已取消</string>
+    <string name="taildrop_failed">传输失败</string>
+    <string name="taildrop_save">保存副本</string>
+    <string name="taildrop_share">分享</string>
+    <string name="taildrop_refresh">刷新</string>
 </resources>
