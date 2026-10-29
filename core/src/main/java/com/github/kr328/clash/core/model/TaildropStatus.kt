@@ -9,6 +9,7 @@ data class TaildropStatus(
     val targets: List<TaildropTarget> = emptyList(),
     val files: List<TaildropFile> = emptyList(),
     val incoming: List<TaildropTransfer> = emptyList(),
+    val offers: List<TaildropOffer> = emptyList(),
     val transfers: List<TaildropTransfer> = emptyList(),
     val error: String = "",
 )
@@ -17,7 +18,17 @@ data class TaildropStatus(
 data class TaildropTarget(val id: String, val name: String, val online: Boolean)
 
 @Serializable
-data class TaildropFile(val name: String, val size: Long)
+data class TaildropOffer(val id: String, val name: String, val size: Long, val sender: String)
+
+@Serializable
+data class TaildropFile(
+    val name: String,
+    val size: Long,
+    val id: String = "",
+    val uri: String = "",
+    val state: String = "waiting",
+    val error: String = "",
+)
 
 @Serializable
 data class TaildropTransfer(
@@ -28,6 +39,7 @@ data class TaildropTransfer(
     val done: Long,
     val state: String,
     val error: String = "",
+    val speed: Long = -1,
 ) {
     val finished: Boolean get() = state in setOf("done", "failed", "cancelled")
 }

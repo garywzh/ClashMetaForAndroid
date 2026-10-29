@@ -2,6 +2,7 @@ package com.github.kr328.clash
 
 import android.content.ClipData
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -54,10 +55,14 @@ class TaildropActivity : BaseActivity<TaildropDesign>() {
         val design = TaildropDesign(this)
         setContentDesign(design)
         design.update(status, pending.size)
+        intent.getStringExtra("taildrop.openId")?.let { id ->
+            intent.removeExtra("taildrop.openId")
+            status.files.firstOrNull { it.id == id && it.state == "saved" }?.let { showFileActions(it, status.session) }
+        }
         if (pending.isNotEmpty() && status.targets.any { it.online }) design.requests.trySend(TaildropDesign.Request.Send)
         launch {
             while (isActive) {
-                delay(1500)
+                delay(1000)
                 if (activityStarted && !refreshQueued) {
                     refreshQueued = true
                     design.requests.trySend(TaildropDesign.Request.Refresh)
@@ -93,11 +98,19 @@ class TaildropActivity : BaseActivity<TaildropDesign>() {
                             TaildropDesign.Request.Refresh -> refreshQueued = false
                             TaildropDesign.Request.Configure -> startActivity(Intent(this@TaildropActivity, TailscaleActivity::class.java))
                             TaildropDesign.Request.Dismiss -> checkResult(command("dismiss"))
-                            is TaildropDesign.Request.Cancel -> checkResult(command(
-                                if (request.transfer.direction == "receive") "cancel-incoming" else "cancel",
-                                buildJsonObject { put("id", request.transfer.id); put("name", request.transfer.name); put("session", status.session) }
+                            is TaildropDesign.Request.TransferActions -> {
+                                if (chooseFileAction(request.transfer.name, listOf(R.string.taildrop_cancel_transfer)) != null) {
+                                    checkResult(command(
+                                        if (request.transfer.direction == "receive") "cancel-incoming" else "cancel",
+                                        buildJsonObject { put("id", request.transfer.id); put("name", request.transfer.name); put("session", status.session) }
+                                    ))
+                                }
+                            }
+                            is TaildropDesign.Request.FileActions -> showFileActions(request.file, status.session)
+                            is TaildropDesign.Request.Decide -> checkResult(command(
+                                if (request.accept) "accept" else "reject",
+                                buildJsonObject { put("id", request.offer.id); put("session", status.session) }
                             ))
-                            is TaildropDesign.Request.Open -> openFile(request.file, status.session)
                         }
                         status = command("status")
                         design.update(status, pending.size)
@@ -137,21 +150,45 @@ class TaildropActivity : BaseActivity<TaildropDesign>() {
         }
     }
 
-    private suspend fun openFile(file: TaildropFile, session: String) {
-        val choice = suspendCancellableCoroutine<Int?> { continuation ->
-            val dialog = MaterialAlertDialogBuilder(this).setTitle(file.name)
-                .setItems(arrayOf(getString(R.string.taildrop_save), getString(R.string.taildrop_share), getString(R.string.delete))) { _, index ->
-                    if (continuation.isActive) continuation.resume(index)
-                }.setOnCancelListener { if (continuation.isActive) continuation.resume(null) }.show()
-            continuation.invokeOnCancellation { dialog.dismiss() }
+    private suspend fun chooseFileAction(name: String, actions: List<Int>): Int? = suspendCancellableCoroutine { continuation ->
+        val dialog = MaterialAlertDialogBuilder(this).setTitle(name)
+            .setItems(actions.map { getString(it) }.toTypedArray()) { _, index ->
+                if (continuation.isActive) continuation.resume(actions[index])
+            }.setOnCancelListener { if (continuation.isActive) continuation.resume(null) }.show()
+        continuation.invokeOnCancellation { dialog.dismiss() }
+    }
+
+    private suspend fun showFileActions(file: TaildropFile, session: String) {
+        val actions = buildList {
+            if (file.state == "saved") add(R.string.taildrop_open)
+            if (file.state == "failed") add(R.string.taildrop_retry_download)
+            add(R.string.taildrop_save)
+            add(R.string.taildrop_share)
+            add(R.string.delete)
         }
+        val choice = chooseFileAction(file.name, actions)
         when (choice) {
-            0 -> {
+            R.string.taildrop_open -> viewFile(file)
+            R.string.taildrop_retry_download -> checkResult(command("retry-download", buildJsonObject { put("id", file.id) }))
+            R.string.taildrop_save -> {
                 val uri = startActivityForResult(ActivityResultContracts.CreateDocument("application/octet-stream"), file.name) ?: return
-                checkResult(command("save", buildJsonObject { put("uri", uri.toString()); put("name", file.name); put("session", session) }))
+                if (file.state == "saved") {
+                    withContext(Dispatchers.IO) {
+                        require(uri != Uri.parse(file.uri)) { "Choose a different file" }
+                        try {
+                            contentResolver.openInputStream(Uri.parse(file.uri)).use { input ->
+                                checkNotNull(input)
+                                contentResolver.openOutputStream(uri, "w").use { output -> checkNotNull(output); input.copyTo(output) }
+                            }
+                        } catch (e: Exception) {
+                            try { contentResolver.delete(uri, null, null) } catch (_: Exception) { }
+                            throw e
+                        }
+                    }
+                } else checkResult(command("save", buildJsonObject { put("uri", uri.toString()); put("name", file.name); put("fileId", file.id); put("session", session) }))
             }
-            1 -> {
-                val uri = withContext(Dispatchers.IO) {
+            R.string.taildrop_share -> {
+                val uri = if (file.state == "saved") Uri.parse(file.uri) else withContext(Dispatchers.IO) {
                     val extras = Bundle().apply { putString("session", session); putLong("size", file.size) }
                     @Suppress("DEPRECATION")
                     contentResolver.call(Uri.parse("content://$packageName.taildrop"), "share", file.name, extras)?.getParcelable<Uri>("uri")
@@ -162,15 +199,28 @@ class TaildropActivity : BaseActivity<TaildropDesign>() {
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 startActivity(Intent.createChooser(share, getString(R.string.taildrop_share)))
             }
-            2 -> MaterialAlertDialogBuilder(this).setTitle(R.string.delete).setMessage(file.name)
+            R.string.delete -> MaterialAlertDialogBuilder(this).setTitle(R.string.delete).setMessage(file.name)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok) { _, _ -> launch {
                     try {
-                        checkResult(command("delete", buildJsonObject { put("name", file.name); put("session", session) }))
+                        if (file.state == "saved" || file.state == "failed") checkResult(command("delete-download", buildJsonObject { put("id", file.id) }))
+                        else checkResult(command("delete", buildJsonObject { put("name", file.name); put("fileId", file.id); put("session", session) }))
                         design?.requests?.trySend(TaildropDesign.Request.Refresh)
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) { design?.showToast(e.message ?: getString(R.string.taildrop_failed), ToastDuration.Long) }
                 } }.show()
+        }
+    }
+
+    private suspend fun viewFile(file: TaildropFile) {
+        val uri = Uri.parse(file.uri)
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, contentResolver.getType(uri) ?: "application/octet-stream")
+                .apply { clipData = ClipData.newRawUri(file.name, uri) }.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        } catch (_: ActivityNotFoundException) {
+            design?.showToast(R.string.taildrop_no_viewer, ToastDuration.Long)
+        } catch (e: Exception) {
+            design?.showToast(e.message ?: getString(R.string.taildrop_failed), ToastDuration.Long)
         }
     }
 }

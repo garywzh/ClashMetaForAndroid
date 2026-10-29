@@ -1,12 +1,15 @@
 package taildrop
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/tailscale/ipn/ipnlocal"
@@ -23,6 +26,34 @@ type incomingDetail struct {
 	Done     bool   `json:"done"`
 }
 
+type waitingDetail struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+func (m *manager) waitingDetails(root string) ([]waitingDetail, error) {
+	files, err := m.WaitingFiles()
+	if err != nil {
+		return nil, err
+	}
+	result := []waitingDetail{}
+	for _, file := range files {
+		info, err := m.opts.fileOps.Stat(file.Name)
+		if err != nil {
+			continue
+		}
+		var inode uint64
+		if st, ok := info.Sys().(*syscall.Stat_t); ok {
+			inode = uint64(st.Ino)
+		}
+		// Identity survives VPN restarts, but changes for a new delivery of the same name and size.
+		hash := sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%d/%d/%d", root, file.Name, inode, info.ModTime().UnixNano(), info.Size())))
+		result = append(result, waitingDetail{ID: fmt.Sprintf("%x", hash), Name: file.Name, Size: info.Size()})
+	}
+	return result, nil
+}
+
 // EnableStagingRoot opts a specific embedded node into Taildrop before Start.
 // Other tsnet nodes created by subscription adapters must retain their behavior.
 func EnableStagingRoot(root string) error {
@@ -35,6 +66,59 @@ func EnableStagingRoot(root string) error {
 }
 
 func init() {
+	localapi.Register("file-offers", func(h *localapi.Handler, w http.ResponseWriter, r *http.Request) {
+		if !h.PermitRead || r.Method != "GET" {
+			http.Error(w, "file access denied", http.StatusForbidden)
+			return
+		}
+		ext, ok := ipnlocal.GetExt[*Extension](h.LocalBackend())
+		if !ok {
+			http.Error(w, "Taildrop unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		json.NewEncoder(w).Encode(ext.manager().pendingOffers())
+	})
+	localapi.Register("file-decision/", func(h *localapi.Handler, w http.ResponseWriter, r *http.Request) {
+		if !h.PermitWrite || r.Method != "POST" {
+			http.Error(w, "file access denied", http.StatusForbidden)
+			return
+		}
+		ext, ok := ipnlocal.GetExt[*Extension](h.LocalBackend())
+		if !ok {
+			http.Error(w, "Taildrop unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		var decision struct {
+			Accept *bool `json:"accept"`
+		}
+		if json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&decision) != nil || decision.Accept == nil {
+			http.Error(w, "missing reception decision", http.StatusBadRequest)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/localapi/v0/file-decision/")
+		if err := ext.manager().decideOffer(id, *decision.Accept); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		io.WriteString(w, "{}")
+	})
+	localapi.Register("file-waiting", func(h *localapi.Handler, w http.ResponseWriter, r *http.Request) {
+		if !h.PermitRead || r.Method != "GET" {
+			http.Error(w, "file access denied", http.StatusForbidden)
+			return
+		}
+		ext, ok := ipnlocal.GetExt[*Extension](h.LocalBackend())
+		if !ok {
+			http.Error(w, "Taildrop unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		files, err := ext.manager().waitingDetails(h.LocalBackend().TailscaleVarRoot())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(files)
+	})
 	localapi.Register("file-incoming", func(h *localapi.Handler, w http.ResponseWriter, r *http.Request) {
 		if !h.PermitRead || r.Method != "GET" {
 			http.Error(w, "file access denied", http.StatusForbidden)

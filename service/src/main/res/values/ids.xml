@@ -5,4 +5,5 @@
     <item name="nf_profile_worker" type="id" />
     <item name="nf_taildrop_transfers" type="id" />
     <item name="nf_taildrop_inbox" type="id" />
+    <item name="nf_taildrop_approval" type="id" />
 </resources>

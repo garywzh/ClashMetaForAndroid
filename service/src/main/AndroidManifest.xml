@@ -12,6 +12,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application>
+        <receiver
+            android:name=".TaildropApprovalReceiver"
+            android:exported="false"
+            android:process=":background" />
         <service
             android:name=".ClashService"
             android:exported="false"

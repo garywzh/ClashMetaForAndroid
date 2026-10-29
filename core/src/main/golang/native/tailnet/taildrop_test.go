@@ -3,6 +3,7 @@ package tailnet
 import (
 	"cfa/native/taildrop"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/metacubex/http"
 	"github.com/metacubex/tailscale/tsnet"
@@ -267,7 +268,7 @@ func TestTaildropLocalAPIsRegistered(t *testing.T) {
 	if files, err := client.IncomingFiles(ctx); err != nil || len(files) != 0 {
 		t.Fatalf("incoming endpoint: %+v %v", files, err)
 	}
-	for _, path := range []string{"file-targets", "files/", "file-put/node/file"} {
+	for _, path := range []string{"file-targets", "files/", "file-waiting", "file-offers", "file-decision/request", "file-put/node/file"} {
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://local-tailscaled.sock/localapi/v0/"+path, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -280,6 +281,114 @@ func TestTaildropLocalAPIsRegistered(t *testing.T) {
 		if resp.StatusCode == 404 {
 			t.Fatalf("missing LocalAPI %s", path)
 		}
+	}
+}
+
+type detailedTestDropClient struct {
+	*fakeDropClient
+	details []DropFile
+}
+
+func (c detailedTestDropClient) waitingDetails(context.Context) ([]DropFile, error) {
+	return c.details, nil
+}
+
+func TestTaildropGuardsStagingCleanupByFileIdentity(t *testing.T) {
+	client := detailedTestDropClient{fakeDropClient: &fakeDropClient{}, details: []DropFile{{ID: "new", Name: "same.txt", Size: 7}}}
+	session := makeTaildropSession(client)
+	defer session.close()
+	if err := session.checkFile(context.Background(), "same.txt", "old"); err == nil {
+		t.Fatal("stale file identity accepted")
+	}
+	if err := session.checkFile(context.Background(), "same.txt", "new"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAutomaticDownloadJobUsesCallerIDAndKeepsOriginal(t *testing.T) {
+	client := &fakeDropClient{get: func(context.Context, string) (io.ReadCloser, int64, error) {
+		return io.NopCloser(strings.NewReader("payload")), 7, nil
+	}}
+	session := makeTaildropSession(client)
+	defer session.close()
+	file, err := os.CreateTemp(t.TempDir(), "download")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = session.start(dropRequest{ID: "download-id", Name: "received.txt", Download: true}, file, true); err != nil {
+		t.Fatal(err)
+	}
+	session.wg.Wait()
+	transfer := session.snapshot().Transfers[0]
+	if transfer.ID != "download-id" || transfer.Direction != "download" || transfer.State != "done" || transfer.Done != 7 {
+		t.Fatal("incorrect download job", transfer)
+	}
+	if client.deleted {
+		t.Fatal("native copy deleted the source before Android publication")
+	}
+}
+
+type approvalTestClient struct {
+	*fakeDropClient
+	offers   []DropOffer
+	accepted []bool
+}
+
+func (c *approvalTestClient) pendingOffers(context.Context) ([]DropOffer, error) {
+	return c.offers, nil
+}
+func (c *approvalTestClient) decideOffer(_ context.Context, id string, accept bool) error {
+	for index, offer := range c.offers {
+		if offer.ID == id {
+			c.accepted = append(c.accepted, accept)
+			c.offers = append(c.offers[:index], c.offers[index+1:]...)
+			return nil
+		}
+	}
+	return errors.New("file request expired")
+}
+
+func TestTaildropApprovalCommandsRequireCurrentSessionAndExactRequest(t *testing.T) {
+	client := &approvalTestClient{fakeDropClient: &fakeDropClient{}, offers: []DropOffer{
+		{ID: "one", Name: "a", Size: 1, Sender: "MacBook"},
+		{ID: "two", Name: "b", Size: -1, Sender: "MacBook"},
+	}}
+	session := makeTaildropSession(client)
+	defer session.close()
+	manager.mu.Lock()
+	previous := manager.drop
+	manager.drop = session
+	manager.mu.Unlock()
+	defer func() { manager.mu.Lock(); manager.drop = previous; manager.mu.Unlock() }()
+	if len(session.status().Offers) != 2 {
+		t.Fatal("missing file requests")
+	}
+	command := func(name, id, sessionID string) DropStatus {
+		content, _ := json.Marshal(dropRequest{ID: id, Session: sessionID})
+		return TaildropCommand(name, string(content))
+	}
+	for _, sessionID := range []string{"", "previous-session"} {
+		if command("taildrop-accept", "one", sessionID).Error == "" {
+			t.Fatal("stale session allowed")
+		}
+	}
+	if command("taildrop-accept", "unknown", session.id).Error == "" {
+		t.Fatal("unknown request allowed")
+	}
+	if result := command("taildrop-accept", "one", session.id); result.Error != "" {
+		t.Fatal(result.Error)
+	}
+	if command("taildrop-accept", "one", session.id).Error == "" {
+		t.Fatal("request replay allowed")
+	}
+	if len(session.status().Offers) != 1 {
+		t.Fatal("decision affected other request")
+	}
+	if result := command("taildrop-reject", "two", session.id); result.Error != "" {
+		t.Fatal(result.Error)
+	}
+	if len(client.accepted) != 2 || !client.accepted[0] || client.accepted[1] {
+		t.Fatalf("wrong decisions: %+v", client.accepted)
 	}
 }
 

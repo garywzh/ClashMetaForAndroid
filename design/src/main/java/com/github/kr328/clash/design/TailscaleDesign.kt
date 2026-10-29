@@ -20,13 +20,13 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
         data object CopyAddress : Request
         data object Refresh : Request
         data object Taildrop : Request
+        data object PortForwarding : Request
     }
 
     private val binding = DesignSettingsCommonBinding.inflate(context.layoutInflater, context.root, false)
     override val root: View get() = binding.root
 
     private var enabled = initial.enabled
-    private var mcpEnabled = initial.mcpEnabled
     private var acceptRoutes = initial.acceptRoutes
     private lateinit var enabledSwitch: SwitchPreference
     private lateinit var routesSwitch: SwitchPreference
@@ -35,7 +35,6 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
     private lateinit var addressRow: ClickablePreference
     private lateinit var loginRow: ClickablePreference
     private lateinit var logoutRow: ClickablePreference
-    private lateinit var forwardSwitch: SwitchPreference
 
     init {
         binding.surface = surface
@@ -69,6 +68,9 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
                 view.isClickable = false
                 view.isFocusable = false
             }
+            clickable(R.string.tailscale_port_forwarding) {
+                clicked { requests.trySend(Request.PortForwarding) }
+            }
             clickable(title = R.string.taildrop) {
                 clicked { requests.trySend(Request.Taildrop) }
             }
@@ -76,31 +78,20 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
                 view.isClickable = false
                 view.isFocusable = false
             }
-            category(R.string.tailscale_mcp)
-            forwardSwitch = switch(
-                value = ::mcpEnabled,
-                title = R.string.tailscale_mcp_forward,
-                summary = R.string.tailscale_mcp_summary,
-            ) {
-                listener = OnChangedListener { save() }
-            }
         }
         binding.content.addView(screen.root)
         update(initial)
     }
 
     private fun save() {
-        forwardSwitch.enabled = enabled
         routesSwitch.enabled = enabled
-        requests.trySend(Request.Save(TailscaleSettings(enabled, mcpEnabled, acceptRoutes)))
+        requests.trySend(Request.Save(TailscaleSettings(enabled, acceptRoutes)))
     }
 
     fun update(status: TailscaleStatus) {
         enabled = status.enabled
-        mcpEnabled = status.mcpEnabled
         acceptRoutes = status.acceptRoutes
         enabledSwitch.checked = enabled
-        forwardSwitch.checked = mcpEnabled
         routesSwitch.checked = acceptRoutes
         val state = when {
             !status.enabled -> R.string.tailscale_disabled
@@ -112,16 +103,10 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
         }
         statusRow.summary = listOf(context.getString(state), status.error, status.health.joinToString("\n"))
             .filter { it.isNotBlank() }.joinToString("\n")
-        addressRow.summary = status.ips.joinToString("\n") { ip ->
-            if (status.mcpListening) {
-                val host = if (ip.contains(':')) "[$ip]" else ip
-                "http://$host:8080/mcp"
-            } else ip
-        }.ifEmpty { null }
+        addressRow.summary = status.ips.joinToString("\n").ifEmpty { null }
         addressRow.enabled = status.ips.isNotEmpty()
         loginRow.enabled = status.enabled && status.state != "Stopped" && status.state != "Running"
         logoutRow.enabled = status.enabled && status.state != "Stopped" && status.state != "NoState"
-        forwardSwitch.enabled = enabled
         routesSwitch.enabled = enabled
         routesRow.summary = when {
             !enabled || !acceptRoutes -> context.getString(R.string.tailscale_disabled)

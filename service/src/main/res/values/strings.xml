@@ -20,8 +20,20 @@
     <string name="profile_updating">Profile Updating</string>
 
     <string name="taildrop_notification_channel">Taildrop</string>
-    <string name="taildrop_notification_files">%1$d received files</string>
+    <string name="taildrop_notification_files">%1$d files saved to Downloads</string>
     <string name="taildrop_notification_active">%1$d active transfers</string>
     <string name="taildrop_notification_finished">%1$d transfers finished</string>
     <string name="taildrop_notification_failed">%1$d transfers failed</string>
+    <string name="taildrop_downloads_legacy">Automatic Downloads saving requires Android 10 or later. Use Save as on this device.</string>
+    <string name="taildrop_download_failed">Could not save to Downloads</string>
+    <string name="taildrop_download_saved">Saved to Downloads</string>
+    <string name="taildrop_download_incomplete">The saved file size does not match. The received original is kept for retry.</string>
+    <string name="taildrop_download_cancelled">Saving was cancelled; the received original is kept for retry.</string>
+    <string name="taildrop_download_delete_failed">Could not delete the received original. Start the VPN and try again.</string>
+    <string name="taildrop_notification_save_failed">%1$d files could not be saved; tap to retry</string>
+    <string name="taildrop_approval_channel">Taildrop receive requests</string>
+    <string name="taildrop_approval_title">Receive file?</string>
+    <string name="taildrop_accept">Receive</string>
+    <string name="taildrop_reject">Decline</string>
+    <string name="taildrop_approval_unknown_size">Unknown size</string>
 </resources>

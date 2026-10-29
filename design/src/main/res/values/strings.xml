@@ -392,8 +392,17 @@
     <string name="taildrop_sent">Sent</string>
     <string name="taildrop_saved">Exported</string>
     <string name="taildrop_cancelled">Cancelled</string>
+    <string name="taildrop_cancel_transfer">Cancel transfer</string>
     <string name="taildrop_failed">Transfer failed</string>
-    <string name="taildrop_save">Save a copy</string>
+    <string name="taildrop_save">Save as</string>
     <string name="taildrop_share">Share</string>
     <string name="taildrop_refresh">Refresh</string>
+    <string name="taildrop_open">Open</string>
+    <string name="taildrop_retry_download">Retry saving to Downloads</string>
+    <string name="taildrop_saving_download">Saving to Downloads</string>
+    <string name="taildrop_download_location">Download/Taildrop</string>
+    <string name="taildrop_waiting_download">Waiting to save to Downloads</string>
+    <string name="taildrop_no_viewer">No app can open this file. You can share it instead.</string>
+    <string name="taildrop_pending">Awaiting approval</string>
+    <string name="taildrop_unknown_size">Unknown size</string>
 </resources>

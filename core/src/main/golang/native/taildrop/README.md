@@ -17,7 +17,9 @@ Local adaptations:
 - Require explicit staging-root opt-in so unrelated subscription-defined tsnet
   nodes do not gain file reception. Use the filesystem implementation on Android
   for private, per-login staging.
-  Android SAF export/share is handled by the app, not direct-file mode.
+  Android MediaStore automatic Downloads publication and SAF export/share are
+  handled by the app, not direct-file mode. The app removes staging only after
+  successful automatic publication; optional SAF export does not remove it.
 - Report actual incoming progress; claim transfers before opening partial files
   so duplicate requests cannot corrupt an active upload. Truncate a fresh
   transfer correctly, keep received files private, and cancel blocked receives
@@ -27,9 +29,18 @@ Local adaptations:
   file expiry/resumption and filename conflict handling are retained.
 - Normalize/escape outbound filenames consistently for both PUT and multipart
   requests, and report unsuccessful PeerAPI HTTP responses as failed sends.
-- Register private LocalAPI endpoints `file-incoming` and `file-cancel/` for
-  Android progress/cancellation. PeerAPI remains the upstream `/v0/put/`
+- Register private LocalAPI endpoints `file-incoming`, `file-waiting` and
+  `file-cancel/` for Android progress, stable staging identities and cancellation.
+  Identity checks guard Android export and cleanup against later same-name
+  deliveries, including across backend restarts. PeerAPI remains the upstream `/v0/put/`
   protocol, with its original identity/capability checks.
+- Require per-file Android approval after the upstream authorization checks and
+  before reading PUT bodies or creating partial files. Pending offers use random,
+  one-shot IDs, a two-minute timeout and a 32-request bound. Private `file-offers`
+  and `file-decision/` LocalAPI endpoints list and decide offers; node shutdown
+  cancels pending waits. Rejection closes the HTTP/1 connection without draining
+  the body. This does not prevent a sender from filling network buffers before
+  approval, and does not introduce a nonstandard sender protocol.
 
 Standalone upstream filename, send, resume, target and HTTP-header tests are
 retained. Tests depending on the removed `tstest` daemon harness are not copied;

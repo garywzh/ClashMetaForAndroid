@@ -301,8 +301,17 @@
     <string name="taildrop_sent">已发送</string>
     <string name="taildrop_saved">已导出</string>
     <string name="taildrop_cancelled">已取消</string>
+    <string name="taildrop_cancel_transfer">取消传输</string>
     <string name="taildrop_failed">传输失败</string>
-    <string name="taildrop_save">保存副本</string>
+    <string name="taildrop_save">另存为</string>
     <string name="taildrop_share">分享</string>
     <string name="taildrop_refresh">刷新</string>
+    <string name="taildrop_open">打开</string>
+    <string name="taildrop_retry_download">重试保存到下载</string>
+    <string name="taildrop_saving_download">正在保存到下载</string>
+    <string name="taildrop_download_location">Download/Taildrop</string>
+    <string name="taildrop_waiting_download">等待保存到下载</string>
+    <string name="taildrop_no_viewer">没有可打开此文件的应用，可使用分享。</string>
+    <string name="taildrop_pending">待接收</string>
+    <string name="taildrop_unknown_size">大小未知</string>
 </resources>

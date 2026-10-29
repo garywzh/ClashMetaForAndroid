@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -284,6 +285,52 @@ func TestTaildropRequiresExplicitNodeOptIn(t *testing.T) {
 	e := &Extension{sb: rootTestBackend{root: t.TempDir()}}
 	if err := e.Init(nil); !errors.Is(err, ipnext.SkipExtension) {
 		t.Fatalf("unrelated tsnet node enabled Taildrop: %v", err)
+	}
+}
+
+func TestWaitingIdentitySurvivesRestartButNotANewDelivery(t *testing.T) {
+	root := t.TempDir()
+	fops, err := newFileOps(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := managerOptions{fileOps: fops}.New()
+	defer m.Shutdown()
+	write := func() {
+		t.Helper()
+		w, _, err := fops.OpenWriter("received.txt", 0, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = io.WriteString(w, "payload"); err != nil {
+			t.Fatal(err)
+		}
+		if err = w.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write()
+	first, err := m.waitingDetails(root)
+	if err != nil || len(first) != 1 || len(first[0].ID) != 64 {
+		t.Fatal(first, err)
+	}
+	restarted := managerOptions{fileOps: fops}.New()
+	defer restarted.Shutdown()
+	again, err := restarted.waitingDetails(root)
+	if err != nil || len(again) != 1 || again[0] != first[0] {
+		t.Fatal("identity changed after restart", again, err)
+	}
+	if err = fops.Remove("received.txt"); err != nil {
+		t.Fatal(err)
+	}
+	write()
+	future := time.Now().Add(time.Second)
+	if err = os.Chtimes(filepath.Join(root, "received.txt"), future, future); err != nil {
+		t.Fatal(err)
+	}
+	next, err := m.waitingDetails(root)
+	if err != nil || len(next) != 1 || next[0].ID == first[0].ID {
+		t.Fatal("new delivery reused old identity", next, err)
 	}
 }
 

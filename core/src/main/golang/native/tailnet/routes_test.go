@@ -52,10 +52,10 @@ func installSubnets(t *testing.T, routes ...string) *subnetSession {
 
 func TestExistingSettingsDoNotOptInToSubnets(t *testing.T) {
 	var settings Settings
-	if err := json.Unmarshal([]byte(`{"enabled":true,"mcpEnabled":true}`), &settings); err != nil {
+	if err := json.Unmarshal([]byte(`{"enabled":true,"forwards":[{"id":"web","name":"Web","enabled":true,"localPort":8000,"tailnetPort":8080}]}`), &settings); err != nil {
 		t.Fatal(err)
 	}
-	if settings.AcceptRoutes || !settings.Enabled || !settings.MCPEnabled {
+	if settings.AcceptRoutes || !settings.Enabled || len(settings.Forwards) != 1 {
 		t.Fatal("legacy settings changed meaning", settings)
 	}
 	testHome(t)
@@ -64,7 +64,7 @@ func TestExistingSettingsDoNotOptInToSubnets(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := ReadSettings()
-	if err != nil || got != settings {
+	if err != nil || !reflect.DeepEqual(got, settings) {
 		t.Fatal("subnet opt-in did not persist", got, err)
 	}
 }

@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -33,6 +35,22 @@ type dropClient interface {
 	CancelIncoming(context.Context, string) error
 }
 
+type detailedDropClient interface {
+	waitingDetails(context.Context) ([]DropFile, error)
+}
+
+type approvalDropClient interface {
+	pendingOffers(context.Context) ([]DropOffer, error)
+	decideOffer(context.Context, string, bool) error
+}
+
+type DropOffer struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	Sender string `json:"sender"`
+}
+
 type DropTarget struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
@@ -48,6 +66,7 @@ type dropIncoming struct {
 }
 
 type DropFile struct {
+	ID   string `json:"id,omitempty"`
 	Name string `json:"name"`
 	Size int64  `json:"size"`
 }
@@ -68,6 +87,7 @@ type DropStatus struct {
 	Targets   []DropTarget   `json:"targets,omitempty"`
 	Files     []DropFile     `json:"files,omitempty"`
 	Incoming  []DropTransfer `json:"incoming,omitempty"`
+	Offers    []DropOffer    `json:"offers,omitempty"`
 	Transfers []DropTransfer `json:"transfers,omitempty"`
 	Error     string         `json:"error"`
 }
@@ -131,6 +151,82 @@ func (c nativeDropClient) IncomingFiles(ctx context.Context) ([]dropIncoming, er
 	return result, err
 }
 
+func (c nativeDropClient) waitingDetails(ctx context.Context) ([]DropFile, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://local-tailscaled.sock/localapi/v0/file-waiting", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.DoLocalRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("waiting files: HTTP %d", resp.StatusCode)
+	}
+	var result []DropFile
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	return result, err
+}
+
+func (c nativeDropClient) pendingOffers(ctx context.Context) ([]DropOffer, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://local-tailscaled.sock/localapi/v0/file-offers", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.DoLocalRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pending files: HTTP %d", resp.StatusCode)
+	}
+	var result []DropOffer
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	return result, err
+}
+
+func (c nativeDropClient) decideOffer(ctx context.Context, id string, accept bool) error {
+	body, _ := json.Marshal(struct {
+		Accept bool `json:"accept"`
+	}{accept})
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://local-tailscaled.sock/localapi/v0/file-decision/"+url.PathEscape(id), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	resp, err := c.DoLocalRequest(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("file decision: %s", strings.TrimSpace(string(message)))
+	}
+	return nil
+}
+
+func (s *taildropSession) checkFile(ctx context.Context, name, id string) error {
+	if id == "" {
+		return nil
+	}
+	client, ok := s.client.(detailedDropClient)
+	if !ok {
+		return nil
+	}
+	files, err := client.waitingDetails(ctx)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if file.Name == name && file.ID == id {
+			return nil
+		}
+	}
+	return errors.New("received file changed; refresh and try again")
+}
+
 func (c nativeDropClient) CancelIncoming(ctx context.Context, name string) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://local-tailscaled.sock/localapi/v0/file-cancel/"+url.PathEscape(name), nil)
 	if err != nil {
@@ -170,12 +266,14 @@ func dropFinished(state string) bool {
 }
 
 type dropRequest struct {
-	Session string `json:"session"`
-	FD      int    `json:"fd"`
-	ID      string `json:"id"`
-	Target  string `json:"target"`
-	Name    string `json:"name"`
-	Size    int64  `json:"size"`
+	Session  string `json:"session"`
+	FD       int    `json:"fd"`
+	ID       string `json:"id"`
+	Target   string `json:"target"`
+	Name     string `json:"name"`
+	Size     int64  `json:"size"`
+	FileID   string `json:"fileId"`
+	Download bool   `json:"download"`
 }
 
 // TaildropCommand only transports metadata. File bytes cross JNI through an
@@ -216,8 +314,27 @@ func TaildropCommand(command, content string) DropStatus {
 		return s.snapshot()
 	case "taildrop-status":
 		return s.status()
+	case "taildrop-accept", "taildrop-reject":
+		if req.Session != s.id {
+			err = errors.New("Taildrop session changed; refresh and try again")
+			break
+		}
+		if client, ok := s.client.(approvalDropClient); ok {
+			ctx, cancel := context.WithTimeout(s.ctx, 8*time.Second)
+			err = client.decideOffer(ctx, req.ID, command == "taildrop-accept")
+			cancel()
+		} else {
+			err = errors.New("file approval unavailable")
+		}
 	case "taildrop-send", "taildrop-save":
-		err = s.start(req, file, command == "taildrop-save")
+		if command == "taildrop-save" {
+			ctx, cancel := context.WithTimeout(s.ctx, 8*time.Second)
+			err = s.checkFile(ctx, req.Name, req.FileID)
+			cancel()
+		}
+		if err == nil {
+			err = s.start(req, file, command == "taildrop-save")
+		}
 		if err != nil {
 			file.Close()
 		}
@@ -230,7 +347,10 @@ func TaildropCommand(command, content string) DropStatus {
 	case "taildrop-delete":
 		ctx, cancel := context.WithTimeout(s.ctx, 8*time.Second)
 		defer cancel()
-		err = s.client.DeleteWaitingFile(ctx, req.Name)
+		err = s.checkFile(ctx, req.Name, req.FileID)
+		if err == nil {
+			err = s.client.DeleteWaitingFile(ctx, req.Name)
+		}
 	case "taildrop-dismiss":
 		s.mu.Lock()
 		var active []*dropJob
@@ -271,13 +391,25 @@ func (s *taildropSession) status() DropStatus {
 		result.Running = false
 		return result
 	}
-	files, err := s.client.WaitingFiles(ctx)
-	if err != nil {
-		result.Error = err.Error()
+	if client, ok := s.client.(approvalDropClient); ok {
+		var err error
+		result.Offers, err = client.pendingOffers(ctx)
+		if err != nil {
+			result.Error = err.Error()
+		}
+	}
+	var err error
+	if client, ok := s.client.(detailedDropClient); ok {
+		result.Files, err = client.waitingDetails(ctx)
 	} else {
+		var files []apitype.WaitingFile
+		files, err = s.client.WaitingFiles(ctx)
 		for _, file := range files {
 			result.Files = append(result.Files, DropFile{Name: file.Name, Size: file.Size})
 		}
+	}
+	if err != nil {
+		result.Error = err.Error()
 	}
 	incoming, incomingErr := s.client.IncomingFiles(ctx)
 	if incomingErr != nil && result.Error == "" {
@@ -336,12 +468,24 @@ func (s *taildropSession) start(req dropRequest, file *os.File, save bool) error
 		}
 	}
 	s.seq++
-	ctx, cancel := context.WithCancel(s.ctx)
 	direction := "send"
 	if save {
 		direction = "save"
+		if req.Download {
+			direction = "download"
+		}
 	}
-	job := &dropJob{DropTransfer: DropTransfer{ID: strconv.FormatUint(s.seq, 10), Name: req.Name, Direction: direction, Size: req.Size, State: "queued"}, cancel: cancel, file: file}
+	id := strconv.FormatUint(s.seq, 10)
+	if req.ID != "" {
+		for _, job := range s.jobs {
+			if job.ID == req.ID {
+				return errors.New("duplicate transfer ID")
+			}
+		}
+		id = req.ID
+	}
+	ctx, cancel := context.WithCancel(s.ctx)
+	job := &dropJob{DropTransfer: DropTransfer{ID: id, Name: req.Name, Direction: direction, Size: req.Size, State: "queued"}, cancel: cancel, file: file}
 	s.jobs = append(s.jobs, job)
 	s.wg.Add(1)
 	go s.run(ctx, job, req.Target)
@@ -358,11 +502,11 @@ func (s *taildropSession) run(ctx context.Context, job *dropJob, target string) 
 		defer func() { <-s.queue }()
 		s.mu.Lock()
 		job.State = "sending"
-		if job.Direction == "save" {
+		if job.Direction != "send" {
 			job.State = "saving"
 		}
 		s.mu.Unlock()
-		if job.Direction == "save" {
+		if job.Direction != "send" {
 			var reader io.ReadCloser
 			var size int64
 			reader, size, err = s.client.GetWaitingFile(ctx, job.Name)
@@ -384,8 +528,8 @@ func (s *taildropSession) run(ctx context.Context, job *dropJob, target string) 
 					err = closeErr
 				}
 			}
-			// Keep the inbox copy even after saving. A provider may buffer
-			// writes; deletion is an explicit user action, never automatic.
+			// The Android coordinator owns publication and identity-checked
+			// staging cleanup. A completed copy alone must never delete it.
 		} else {
 			stop := context.AfterFunc(ctx, func() { job.file.Close() })
 			err = s.client.PushFile(ctx, tailcfg.StableNodeID(target), job.Size, job.Name, &dropReader{Reader: job.file, count: &job.count})

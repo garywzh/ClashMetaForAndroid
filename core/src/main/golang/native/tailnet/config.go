@@ -61,7 +61,7 @@ func Attach(cfg *config.Config) error {
 		manager.lastError = err.Error()
 		return err
 	}
-	manager.configureForwardLocked(settings.MCPEnabled)
+	manager.configureForwardsLocked(settings.Forwards)
 	// Adapter lifetimes belong to profiles; the underlying server belongs to the VPN.
 	// Keep the wrapper identity: proxy groups/providers also hold references to it.
 	proxy.ProxyAdapter = newOutbound()

@@ -4,36 +4,68 @@ import (
 	"context"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
 
 type forwarder struct {
+	rule     ForwardRule
 	listener net.Listener
 	ctx      context.Context
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 }
 
-func (r *runtime) configureForwardLocked(enabled bool) {
-	if !enabled && r.forward != nil {
-		r.forward.Close()
-		r.forward = nil
-	}
-	if !enabled || r.forward != nil {
-		return
-	}
+type ForwardStatus struct {
+	ID        string `json:"id"`
+	Listening bool   `json:"listening"`
+	Error     string `json:"error"`
+}
+
+func (r *runtime) configureForwardsLocked(rules []ForwardRule) {
 	// tsnet.Listen binds only inside the Tailnet, never on Android's LAN interfaces.
-	listener, err := r.server.Listen("tcp", ":8080")
-	if err != nil {
-		r.lastError = err.Error()
-		return
+	if r.server == nil {
+		rules = nil
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	f := &forwarder{listener: listener, ctx: ctx, cancel: cancel}
-	r.forward = f
-	f.wg.Add(1)
-	go f.serve()
+	r.reconcileForwards(rules, func(network, address string) (net.Listener, error) {
+		return r.server.Listen(network, address)
+	})
+}
+
+func (r *runtime) reconcileForwards(rules []ForwardRule, listen func(string, string) (net.Listener, error)) {
+	wanted := make(map[string]ForwardRule)
+	for _, rule := range rules {
+		if rule.Enabled {
+			wanted[rule.ID] = rule
+		}
+	}
+	for id, f := range r.forwards {
+		rule, exists := wanted[id]
+		if !exists || f.rule.LocalPort != rule.LocalPort || f.rule.TailnetPort != rule.TailnetPort {
+			f.Close()
+			delete(r.forwards, id)
+		}
+	}
+	if r.forwards == nil {
+		r.forwards = make(map[string]*forwarder)
+	}
+	r.forwardErrors = make(map[string]string)
+	for _, rule := range rules {
+		if !rule.Enabled || r.forwards[rule.ID] != nil {
+			continue
+		}
+		listener, err := listen("tcp", ":"+strconv.Itoa(rule.TailnetPort))
+		if err != nil {
+			r.forwardErrors[rule.ID] = err.Error()
+			continue
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		f := &forwarder{rule: rule, listener: listener, ctx: ctx, cancel: cancel}
+		r.forwards[rule.ID] = f
+		f.wg.Add(1)
+		go f.serve()
+	}
 }
 
 func (f *forwarder) serve() {
@@ -50,7 +82,7 @@ func (f *forwarder) serve() {
 			go func() {
 				defer f.wg.Done()
 				defer func() { <-slots }()
-				relay(f.ctx, conn, "127.0.0.1:8080")
+				relay(f.ctx, conn, net.JoinHostPort("127.0.0.1", strconv.Itoa(f.rule.LocalPort)))
 			}()
 		default:
 			conn.Close()
@@ -58,7 +90,7 @@ func (f *forwarder) serve() {
 	}
 }
 
-// Forward raw TCP, leaving HTTP paths and the MCP server's Bearer check untouched.
+// Forward raw TCP without interpreting protocols or bypassing service authentication.
 func relay(ctx context.Context, remote net.Conn, target string) {
 	defer remote.Close()
 	local, err := (&net.Dialer{Timeout: 3 * time.Second}).DialContext(ctx, "tcp", target)

@@ -63,14 +63,13 @@ class TailscaleActivity : BaseActivity<TailscaleDesign>() {
                             TailscaleDesign.Request.CopyAddress -> {
                                 val ip = status.ips.firstOrNull { !it.contains(':') } ?: status.ips.firstOrNull()
                                 if (ip != null) {
-                                    val host = if (ip.contains(':')) "[$ip]" else ip
-                                    val text = if (status.mcpListening) "http://$host:8080/mcp" else ip
                                     (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager)
-                                        .setPrimaryClip(ClipData.newPlainText("Tailscale", text))
+                                        .setPrimaryClip(ClipData.newPlainText("Tailscale", ip))
                                 }
                             }
                             TailscaleDesign.Request.Refresh -> status = command("status")
                             TailscaleDesign.Request.Taildrop -> startActivity(Intent(this@TailscaleActivity, TaildropActivity::class.java))
+                            TailscaleDesign.Request.PortForwarding -> startActivity(Intent(this@TailscaleActivity, PortForwardingActivity::class.java))
                         }
                         design.update(status)
                         if (status.error.isNotEmpty()) pendingLogin = false

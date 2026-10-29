@@ -18,8 +18,20 @@
     <string name="profile_process_result">配置文件处理结果</string>
 
     <string name="taildrop_notification_channel">Taildrop</string>
-    <string name="taildrop_notification_files">已收到 %1$d 个文件</string>
+    <string name="taildrop_notification_files">%1$d 个文件已保存到下载</string>
     <string name="taildrop_notification_active">%1$d 项传输进行中</string>
     <string name="taildrop_notification_finished">%1$d 项传输已结束</string>
     <string name="taildrop_notification_failed">%1$d 项传输失败</string>
+    <string name="taildrop_downloads_legacy">自动保存到下载需要 Android 10 或以上，此设备可使用“另存为”。</string>
+    <string name="taildrop_download_failed">保存到下载失败</string>
+    <string name="taildrop_download_saved">已保存到下载</string>
+    <string name="taildrop_download_incomplete">保存的文件大小不匹配，已保留接收原件以供重试。</string>
+    <string name="taildrop_download_cancelled">已取消保存，接收原件仍保留，可稍后重试。</string>
+    <string name="taildrop_download_delete_failed">无法删除接收原件，请启动 VPN 后重试。</string>
+    <string name="taildrop_notification_save_failed">%1$d 个文件保存失败，点按重试</string>
+    <string name="taildrop_approval_channel">Taildrop 接收请求</string>
+    <string name="taildrop_approval_title">是否接收文件？</string>
+    <string name="taildrop_accept">接收</string>
+    <string name="taildrop_reject">拒绝</string>
+    <string name="taildrop_approval_unknown_size">大小未知</string>
 </resources>

@@ -22,6 +22,14 @@ class ClashManager(private val context: Context) : IClashManager,
 
     override suspend fun tailscaleCommand(command: String, content: String): String =
         withContext(Dispatchers.IO) {
+            if (command == "taildrop-status" || command == "taildrop-retry-download" || command == "taildrop-delete-download") {
+                if (command != "taildrop-status") {
+                    val id = Json.parseToJsonElement(content).jsonObject.getValue("id").jsonPrimitive.content
+                    if (command == "taildrop-retry-download") TaildropDownloads.get(context).retry(id)
+                    else TaildropDownloads.get(context).delete(id)
+                }
+                return@withContext Json.encodeToString(TaildropStatus.serializer(), TaildropDownloads.query(context))
+            }
             val result = if (command == "taildrop-send" || command == "taildrop-save") {
                 val request = Json.parseToJsonElement(content).jsonObject
                 val uri = Uri.parse(request.getValue("uri").jsonPrimitive.content)

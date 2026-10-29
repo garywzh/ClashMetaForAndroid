@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <application>
+        <!-- Storage tests do not initialize the full VPN Application. -->
+        <receiver
+            android:name="com.github.kr328.clash.service.ProfileReceiver"
+            android:enabled="false"
+            tools:replace="android:enabled" />
+    </application>
+</manifest>

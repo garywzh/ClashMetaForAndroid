@@ -22,23 +22,24 @@ import (
 
 type Status struct {
 	Settings
-	State        string   `json:"state"`
-	AuthURL      string   `json:"authUrl"`
-	IPs          []string `json:"ips"`
-	Health       []string `json:"health"`
-	SubnetRoutes []string `json:"subnetRoutes"`
-	SubnetError  string   `json:"subnetError"`
-	MCPListening bool     `json:"mcpListening"`
-	Error        string   `json:"error"`
+	State         string          `json:"state"`
+	AuthURL       string          `json:"authUrl"`
+	IPs           []string        `json:"ips"`
+	Health        []string        `json:"health"`
+	SubnetRoutes  []string        `json:"subnetRoutes"`
+	SubnetError   string          `json:"subnetError"`
+	ForwardStatus []ForwardStatus `json:"forwardStatus,omitempty"`
+	Error         string          `json:"error"`
 }
 
 type runtime struct {
-	mu        sync.Mutex
-	server    *tsnet.Server
-	forward   *forwarder
-	drop      *taildropSession
-	lastError string
-	subnets   atomic.Pointer[subnetSession]
+	mu            sync.Mutex
+	server        *tsnet.Server
+	forwards      map[string]*forwarder
+	forwardErrors map[string]string
+	drop          *taildropSession
+	lastError     string
+	subnets       atomic.Pointer[subnetSession]
 }
 
 var manager runtime
@@ -113,10 +114,7 @@ func (r *runtime) stopLocked() {
 	if subnets := r.subnets.Swap(nil); subnets != nil {
 		subnets.close()
 	}
-	if r.forward != nil {
-		r.forward.Close()
-		r.forward = nil
-	}
+	r.configureForwardsLocked(nil)
 	if r.server != nil {
 		r.server.Close()
 		r.server = nil
@@ -159,8 +157,20 @@ func Command(command, content string) Status {
 	switch command {
 	case "settings":
 		var settings Settings
-		if err = json.Unmarshal([]byte(content), &settings); err == nil {
-			err = manager.saveSettingsLocked(settings)
+		if settings, err = ReadSettings(); err == nil {
+			if err = json.Unmarshal([]byte(content), &settings); err == nil {
+				err = manager.saveSettingsLocked(settings)
+			}
+		}
+	case "forwards":
+		var rules []ForwardRule
+		if err = json.Unmarshal([]byte(content), &rules); err == nil {
+			var settings Settings
+			settings, err = ReadSettings()
+			if err == nil {
+				settings.Forwards = rules
+				err = manager.saveSettingsLocked(settings)
+			}
 		}
 	case "login", "logout":
 		if manager.server == nil {
@@ -186,7 +196,7 @@ func Command(command, content string) Status {
 				settings, readErr := ReadSettings()
 				err = readErr
 				if err == nil {
-					manager.configureForwardLocked(settings.MCPEnabled)
+					manager.configureForwardsLocked(settings.Forwards)
 				}
 			}
 		} else {
@@ -197,7 +207,7 @@ func Command(command, content string) Status {
 				subnets.setEnabled(false)
 				subnets.update(nil, nil)
 			}
-			manager.configureForwardLocked(false)
+			manager.configureForwardsLocked(nil)
 			err = lc.Logout(ctx)
 			manager.drop = newTaildropSession(lc)
 		}
@@ -214,6 +224,9 @@ func Command(command, content string) Status {
 }
 
 func (r *runtime) saveSettingsLocked(settings Settings) error {
+	if err := settings.validate(); err != nil {
+		return err
+	}
 	previous, err := ReadSettings()
 	if err != nil {
 		return err
@@ -248,11 +261,17 @@ func (r *runtime) saveSettingsLocked(settings Settings) error {
 	} else if subnets := r.subnets.Load(); subnets != nil {
 		subnets.setEnabled(settings.AcceptRoutes)
 	}
+	if settings.Enabled {
+		r.configureForwardsLocked(settings.Forwards)
+	}
 	return nil
 }
 
 func (r *runtime) routingStatusLocked() Status {
 	settings, err := ReadSettings()
+	if settings.Forwards == nil {
+		settings.Forwards = []ForwardRule{}
+	}
 	result := Status{Settings: settings, State: "Stopped", IPs: []string{}, Health: []string{}, SubnetRoutes: []string{}, Error: r.lastError}
 	if subnets := r.subnets.Load(); subnets != nil {
 		if snapshot := subnets.current.Load(); snapshot != nil && settings.AcceptRoutes {
@@ -273,7 +292,12 @@ func (r *runtime) statusLocked() Status {
 	if r.server == nil {
 		return result
 	}
-	result.MCPListening = r.forward != nil
+	result.ForwardStatus = make([]ForwardStatus, 0, len(result.Forwards))
+	for _, rule := range result.Forwards {
+		result.ForwardStatus = append(result.ForwardStatus, ForwardStatus{
+			ID: rule.ID, Listening: r.forwards[rule.ID] != nil, Error: r.forwardErrors[rule.ID],
+		})
+	}
 	lc, err := r.server.LocalClient()
 	if err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

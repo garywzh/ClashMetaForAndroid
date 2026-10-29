@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unicode"
 	"unicode/utf8"
@@ -75,7 +76,8 @@ type managerOptions struct {
 	// have no purpose in DirectFileMode.
 	// They are only used to check whether files are in the staging directory,
 	// copy them out, and then delete them.
-	DirectFileMode bool
+	DirectFileMode  bool
+	RequireApproval bool
 
 	// FileOps abstracts platform-specific file operations needed for file transfers.
 	// Android's implementation uses the Storage Access Framework, and other platforms
@@ -93,6 +95,10 @@ type managerOptions struct {
 type manager struct {
 	opts         managerOptions
 	receiveSlots chan struct{}
+	approvalMu   sync.Mutex
+	offers       map[string]*pendingOffer
+	approvalStop chan struct{}
+	approvalOnce sync.Once
 
 	// incomingFiles is a map of files actively being received.
 	incomingFiles syncs.Map[incomingFileKey, *incomingFile]
@@ -116,7 +122,7 @@ func (opts managerOptions) New() *manager {
 	if opts.SendFileNotify == nil {
 		opts.SendFileNotify = func() {}
 	}
-	m := &manager{opts: opts, receiveSlots: make(chan struct{}, 4)}
+	m := &manager{opts: opts, receiveSlots: make(chan struct{}, 4), offers: make(map[string]*pendingOffer), approvalStop: make(chan struct{})}
 	m.deleter.Init(m, func(string) {})
 	m.emptySince.Store(-1) // invalidate this cache
 	return m
@@ -126,6 +132,7 @@ func (opts managerOptions) New() *manager {
 // It blocks until all spawned goroutines have stopped running.
 func (m *manager) Shutdown() {
 	if m != nil {
+		m.approvalOnce.Do(func() { close(m.approvalStop) })
 		m.deleter.shutdown()
 		m.deleter.group.Wait()
 	}

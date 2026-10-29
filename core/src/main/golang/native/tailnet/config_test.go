@@ -103,15 +103,15 @@ func TestPatchedConfigParsesWithoutStartingServer(t *testing.T) {
 func TestSettingsPersistPrivatelyAndDefaultOff(t *testing.T) {
 	testHome(t)
 	settings, err := ReadSettings()
-	if err != nil || settings.Enabled || settings.MCPEnabled {
+	if err != nil || settings.Enabled || len(settings.Forwards) != 0 {
 		t.Fatal("new installations must default to off", settings, err)
 	}
-	want := Settings{Enabled: true, MCPEnabled: true}
+	want := Settings{Enabled: true, Forwards: []ForwardRule{{ID: "web", Name: "Web", Enabled: true, LocalPort: 8000, TailnetPort: 8080}}}
 	if err = saveSettings(want); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadSettings()
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatal("settings did not round trip", got, err)
 	}
 	info, err := os.Stat(C.Path.Resolve("tailscale-settings.json"))

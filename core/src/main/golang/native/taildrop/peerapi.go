@@ -138,6 +138,31 @@ func handlePeerPutWithBackend(h ipnlocal.PeerAPIHandler, ext extensionForPut, w 
 			}
 			offset = ranges[0].Start
 		}
+		if validateBaseName(baseName) != nil || offset < 0 || (r.ContentLength >= 0 && offset+r.ContentLength < offset) {
+			http.Error(w, "invalid filename or size", http.StatusBadRequest)
+			return
+		}
+		size := r.ContentLength
+		if size >= 0 {
+			size += offset
+		}
+		if err := taildropMgr.awaitApproval(r.Context(), id, h.Peer().ComputedName(), baseName, size, approvalTimeout); err != nil {
+			code := http.StatusForbidden
+			switch err {
+			case errApprovalExpired:
+				code = http.StatusRequestTimeout
+			case errApprovalBusy:
+				code = http.StatusTooManyRequests
+			case ErrFileExists:
+				code = http.StatusConflict
+			case errApprovalClosed:
+				code = http.StatusServiceUnavailable
+			}
+			// Avoid draining an unapproved HTTP/1 request body while returning an error.
+			w.Header().Set("Connection", "close")
+			http.Error(w, err.Error(), code)
+			return
+		}
 		body := &interruptibleBody{ReadCloser: r.Body, interrupt: func() {
 			// Closing a server request body alone can wait for a blocked Read.
 			// A stream read deadline first makes receive cancellation immediate.

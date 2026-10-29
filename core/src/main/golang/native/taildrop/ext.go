@@ -164,12 +164,13 @@ func (e *Extension) onChangeProfile(profile ipn.LoginProfileView, _ ipn.PrefsVie
 	}
 
 	e.setMgrLocked(managerOptions{
-		Logf:           e.logf,
-		Clock:          tstime.DefaultClock{Clock: e.sb.Clock()},
-		State:          e.stateStore,
-		DirectFileMode: isDirectFileMode,
-		fileOps:        fops,
-		SendFileNotify: e.sendFileNotify,
+		Logf:            e.logf,
+		Clock:           tstime.DefaultClock{Clock: e.sb.Clock()},
+		State:           e.stateStore,
+		DirectFileMode:  isDirectFileMode,
+		RequireApproval: true,
+		fileOps:         fops,
+		SendFileNotify:  e.sendFileNotify,
 	}.New())
 }
 
