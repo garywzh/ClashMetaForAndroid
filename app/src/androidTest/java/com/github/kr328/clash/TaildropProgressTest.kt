@@ -3,6 +3,7 @@ package com.github.kr328.clash
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -82,14 +83,15 @@ class TaildropProgressTest {
                     transfers = listOf(TaildropTransfer("out", "project-archive.zip", "send",
                         -1, 8_000_000, "sending", speed = 600_000),
                         TaildropTransfer("download-1", "meeting-notes.pdf", "download",
-                            2_500_000, 2_500_000, "done")),
+                            2_500_000, 2_500_000, "done"),
+                        TaildropTransfer("sent-1", "sent-record.txt", "send", 100, 100, "done")),
                     files = listOf(TaildropFile("meeting-notes.pdf", 2_500_000, "saved",
                         "content://media/external/downloads/1", "saved"))))
             }
             instrumentation.waitForIdleSync()
             instrumentation.runOnMainSync {
                 val views = descendants(design.root).toList()
-                val bars = views.filterIsInstance<ProgressBar>()
+                val bars = views.filterIsInstance<ProgressBar>().filter { it.visibility == View.VISIBLE }
                 assertEquals(2, bars.size)
                 assertEquals(42, bars.single { !it.isIndeterminate }.progress)
                 assertEquals(1, bars.count { it.isIndeterminate })
@@ -97,9 +99,12 @@ class TaildropProgressTest {
                 assertTrue(text.contains("42%"))
                 assertTrue(text.contains("/s"))
                 assertTrue(text.contains("Download/Taildrop"))
+                assertEquals(1, views.filterIsInstance<TextView>().count { it.text.toString().contains("Download/Taildrop") })
                 assertEquals(1, views.filterIsInstance<TextView>().count { it.text.toString() == "meeting-notes.pdf" })
                 assertFalse(views.filterIsInstance<TextView>().any { it.text.toString() == context.getString(R.string.taildrop_transfers) })
                 assertFalse(views.filterIsInstance<TextView>().any { it.text.toString() == context.getString(R.string.taildrop_inbox) })
+                design.root.findViewById<View>(R.id.primary_action).performClick()
+                assertEquals(TaildropDesign.Request.Send, design.requests.tryReceive().getOrNull())
             }
             // Screenshot the same native layout that the assertions inspect.
             Thread.sleep(300)
@@ -109,6 +114,17 @@ class TaildropProgressTest {
                 }
                 bitmap.recycle()
             }
+            instrumentation.runOnMainSync { design.root.findViewById<View>(R.id.more_action).performClick() }
+            val deadline = System.currentTimeMillis() + 3000
+            var clicked = false
+            while (!clicked && System.currentTimeMillis() < deadline) {
+                val node = instrumentation.uiAutomation.rootInActiveWindow
+                    ?.findAccessibilityNodeInfosByText(context.getString(R.string.taildrop_clear_finished))?.firstOrNull()
+                clicked = generateSequence(node) { it.parent }.any { it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+                if (!clicked) Thread.sleep(50)
+            }
+            assertTrue("Finished history must be clearable from the overflow menu", clicked)
+            assertEquals(TaildropDesign.Request.Dismiss, design.requests.tryReceive().getOrNull())
             instrumentation.runOnMainSync {
                 val saved = TaildropFile("meeting-notes.pdf", 2_500_000,
                     "saved", "content://media/external/downloads/1", "saved")

@@ -3,11 +3,13 @@ package com.github.kr328.clash.design
 import android.content.Context
 import android.text.format.Formatter
 import android.view.View
+import androidx.appcompat.widget.PopupMenu
 import com.github.kr328.clash.core.model.TaildropFile
 import com.github.kr328.clash.core.model.TaildropOffer
 import com.github.kr328.clash.core.model.TaildropStatus
 import com.github.kr328.clash.core.model.TaildropTransfer
-import com.github.kr328.clash.design.databinding.DesignSettingsCommonBinding
+import com.github.kr328.clash.design.databinding.DesignTailnetBinding
+import com.github.kr328.clash.design.databinding.ViewTaildropLocationBinding
 import com.github.kr328.clash.design.databinding.AdapterTaildropTransferBinding
 import com.github.kr328.clash.design.databinding.AdapterTaildropOfferBinding
 import com.github.kr328.clash.design.preference.*
@@ -25,11 +27,12 @@ class TaildropDesign(context: Context) : Design<TaildropDesign.Request>(context)
         data class Decide(val offer: TaildropOffer, val accept: Boolean) : Request
     }
 
-    private val binding = DesignSettingsCommonBinding.inflate(context.layoutInflater, context.root, false)
+    private val binding = DesignTailnetBinding.inflate(context.layoutInflater, context.root, false)
     override val root: View get() = binding.root
     private lateinit var statusRow: ClickablePreference
-    private lateinit var sendRow: ClickablePreference
-    private lateinit var dismissRow: ClickablePreference
+    private lateinit var noticeRow: ClickablePreference
+    private val location = ViewTaildropLocationBinding.inflate(context.layoutInflater, binding.content, false)
+    private var hasFinished = false
     private val transfers = preferenceScreen(context) {}
     private val inbox = preferenceScreen(context) {}
     private val offers = preferenceScreen(context) {}
@@ -43,14 +46,31 @@ class TaildropDesign(context: Context) : Design<TaildropDesign.Request>(context)
         binding.surface = surface
         binding.activityBarLayout.applyFrom(context)
         binding.scrollRoot.bindAppBarElevation(binding.activityBarLayout)
+        binding.primaryAction.apply {
+            visibility = View.VISIBLE
+            setText(R.string.taildrop_send_action)
+            contentDescription = context.getString(R.string.taildrop_send)
+            setOnClickListener { requests.trySend(Request.Send) }
+        }
+        binding.moreAction.visibility = View.VISIBLE
+        binding.moreAction.setOnClickListener {
+            PopupMenu(context, binding.moreAction).apply {
+                menu.add(0, R.string.taildrop_refresh, 0, R.string.taildrop_refresh)
+                if (hasFinished) menu.add(0, R.string.taildrop_clear_finished, 1, R.string.taildrop_clear_finished)
+                setOnMenuItemClickListener {
+                    requests.trySend(if (it.itemId == R.string.taildrop_refresh) Request.Refresh else Request.Dismiss)
+                    true
+                }
+                show()
+            }
+        }
         val screen = preferenceScreen(context) {
             statusRow = clickable(R.string.tailscale) { clicked { requests.trySend(Request.Configure) } }
-            sendRow = clickable(R.string.taildrop_send) { clicked { requests.trySend(Request.Send) } }
-            clickable(R.string.taildrop_refresh) { clicked { requests.trySend(Request.Refresh) } }
+            noticeRow = clickable(R.string.taildrop_no_devices) { view.isClickable = false; view.isFocusable = false }
             root.addView(offers.root)
             root.addView(transfers.root)
             root.addView(inbox.root)
-            dismissRow = clickable(R.string.taildrop_clear_finished) { clicked { requests.trySend(Request.Dismiss) } }
+            root.addView(location.root)
         }
         binding.content.addView(screen.root)
     }
@@ -71,15 +91,15 @@ class TaildropDesign(context: Context) : Design<TaildropDesign.Request>(context)
         }
         statusRow.view.visibility = if (!status.running || status.error.isNotBlank()) View.VISIBLE else View.GONE
         statusRow.summary = if (!status.running) context.getString(R.string.taildrop_start_vpn) else status.error
-        sendRow.enabled = status.running && status.targets.any { it.online }
-        sendRow.summary = when {
+        binding.primaryAction.isEnabled = status.running && status.targets.any { it.online }
+        noticeRow.view.visibility = if (selected > 0 || (status.running && status.targets.none { it.online })) View.VISIBLE else View.GONE
+        noticeRow.title = when {
             selected > 0 -> context.getString(R.string.taildrop_selected, selected)
-            status.running && status.targets.none { it.online } -> context.getString(R.string.taildrop_no_devices)
-            else -> null
+            else -> context.getString(R.string.taildrop_no_devices)
         }
         // Automatic Downloads jobs become saved files, not a second completion row.
         val visibleTransfers = status.transfers.filter { it.direction != "download" || !it.finished }
-        val items = status.incoming + visibleTransfers.asReversed()
+        val items = (status.incoming + visibleTransfers.asReversed()).sortedBy { it.finished }
         val keys = items.map { it.direction + ":" + it.id }
         if (keys != transferKeys) {
             transferKeys = keys
@@ -120,7 +140,8 @@ class TaildropDesign(context: Context) : Design<TaildropDesign.Request>(context)
             row.root.isClickable = !item.finished
             row.root.isFocusable = !item.finished
         }
-        dismissRow.view.visibility = if (visibleTransfers.any { it.finished }) View.VISIBLE else View.GONE
+        hasFinished = visibleTransfers.any { it.finished }
+        location.root.visibility = if (status.files.any { it.state == "saved" }) View.VISIBLE else View.GONE
         if (!inboxInitialized || status.files != inboxFiles) {
             inboxInitialized = true
             inboxFiles = status.files
@@ -129,7 +150,7 @@ class TaildropDesign(context: Context) : Design<TaildropDesign.Request>(context)
                 inbox.clickable(R.string.taildrop_inbox) {
                     title = file.name
                     summary = listOf(size(file.size), when (file.state) {
-                        "saved" -> context.getString(R.string.taildrop_download_location)
+                        "saved" -> context.getString(R.string.taildrop_file_saved)
                         "failed" -> file.error
                         else -> context.getString(R.string.taildrop_waiting_download)
                     }).filter { it.isNotBlank() }.joinToString(" · ")

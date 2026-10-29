@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android">
+    <data>
+        <variable name="surface" type="com.github.kr328.clash.design.ui.Surface" />
+    </data>
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:paddingStart="@{surface.insets.start}" android:paddingEnd="@{surface.insets.end}">
+        <com.github.kr328.clash.design.view.ObservableScrollView
+            android:id="@+id/scroll_root" android:layout_width="match_parent"
+            android:layout_height="match_parent" android:clipToPadding="false">
+            <FrameLayout android:id="@+id/content" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="@{(float) surface.insets.top + @dimen/toolbar_height}"
+                android:paddingBottom="@{surface.insets.bottom}" />
+        </com.github.kr328.clash.design.view.ObservableScrollView>
+        <com.github.kr328.clash.design.view.ActivityBarLayout
+            android:id="@+id/activity_bar_layout" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:paddingTop="@{surface.insets.top}">
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:minHeight="@dimen/toolbar_height" android:paddingEnd="@dimen/item_midden_margin">
+                <include layout="@layout/common_activity_bar" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_toStartOf="@id/actions"
+                    android:layout_centerVertical="true" />
+                <LinearLayout android:id="@+id/actions" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true" android:gravity="center_vertical" android:orientation="horizontal">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/primary_action"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content" android:layout_height="48dp"
+                        android:minWidth="48dp" android:maxWidth="120dp" android:maxLines="1"
+                        android:ellipsize="end" android:visibility="gone" />
+                    <ImageButton android:id="@+id/more_action" android:layout_width="48dp"
+                        android:layout_height="48dp" android:padding="12dp"
+                        android:src="@drawable/ic_baseline_more_vert" android:contentDescription="@string/more"
+                        android:background="?attr/selectableItemBackgroundBorderless" android:visibility="gone" />
+                </LinearLayout>
+            </RelativeLayout>
+        </com.github.kr328.clash.design.view.ActivityBarLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+</layout>

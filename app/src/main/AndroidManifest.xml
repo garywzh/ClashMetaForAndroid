@@ -103,6 +103,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".SubnetRoutesActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/tailscale_routes" />
+        <activity
             android:name=".PortForwardingActivity"
             android:configChanges="uiMode"
             android:exported="false"
@@ -114,7 +119,7 @@
         <activity
             android:name=".TaildropActivity"
             android:exported="true"
-            android:label="@string/taildrop">
+            android:label="@string/tailscale_file_transfer">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

@@ -381,7 +381,7 @@
     <string name="taildrop_start_vpn">Enable Tailscale, start the VPN and log in to send and receive files.</string>
     <string name="taildrop_no_devices">No available receiving devices</string>
     <string name="taildrop_transfers">Transfers</string>
-    <string name="taildrop_clear_finished">Clear finished transfers</string>
+    <string name="taildrop_clear_finished">Clear finished transfer records</string>
     <string name="taildrop_no_transfers">No transfers</string>
     <string name="taildrop_inbox">Inbox</string>
     <string name="taildrop_empty">No received files</string>

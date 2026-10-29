@@ -290,7 +290,7 @@
     <string name="taildrop_start_vpn">启用 Tailscale、启动 VPN 并完成登录后即可收发文件。</string>
     <string name="taildrop_no_devices">暂无可接收文件的在线设备</string>
     <string name="taildrop_transfers">传输</string>
-    <string name="taildrop_clear_finished">清除已结束的传输</string>
+    <string name="taildrop_clear_finished">清除已结束的传输记录</string>
     <string name="taildrop_no_transfers">暂无传输</string>
     <string name="taildrop_inbox">收件箱</string>
     <string name="taildrop_empty">暂无收到的文件</string>

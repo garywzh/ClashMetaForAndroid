@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="tailscale_connection">Connection</string>
+    <string name="tailscale_features">Features</string>
+    <string name="tailscale_usage">Usage</string>
+    <string name="tailscale_copy_address">Copy Tailnet address</string>
+    <string name="tailscale_file_transfer">File Transfer</string>
+    <string name="tailscale_routes">Subnet Routes</string>
+    <string name="tailscale_routes_count">Enabled · %1$d accepted</string>
+    <string name="tailscale_routes_error">Route error</string>
+    <string name="tailscale_routes_off">Subnet routes are turned off</string>
+    <string name="port_forward_empty">No forwarding rules</string>
+    <string name="port_forward_empty_hint">Tap Add to share a local TCP service with your Tailnet.</string>
+    <string name="port_forward_enabled_count">Enabled rules: %1$d</string>
+    <string name="port_forward_add_action">Add</string>
+    <string name="taildrop_send_action">Send</string>
+    <string name="taildrop_file_saved">Saved</string>
+    <string name="taildrop_storage_location">Saved to Download/Taildrop</string>
     <string name="tailscale">Tailscale</string>
     <string name="tailscale_enable">Enable Tailscale</string>
     <string name="tailscale_status">Connection</string>

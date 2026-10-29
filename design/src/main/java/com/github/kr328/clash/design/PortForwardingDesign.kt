@@ -8,7 +8,8 @@ import androidx.core.widget.doAfterTextChanged
 import com.github.kr328.clash.core.model.TailscaleForwardRule
 import com.github.kr328.clash.core.model.TailscaleStatus
 import com.github.kr328.clash.design.databinding.AdapterPortForwardBinding
-import com.github.kr328.clash.design.databinding.DesignSettingsCommonBinding
+import com.github.kr328.clash.design.databinding.DesignTailnetBinding
+import com.github.kr328.clash.design.databinding.ViewTailnetNoteBinding
 import com.github.kr328.clash.design.databinding.DialogPortForwardBinding
 import com.github.kr328.clash.design.preference.*
 import com.github.kr328.clash.design.util.*
@@ -24,11 +25,11 @@ class PortForwardingDesign(context: Context) : Design<PortForwardingDesign.Reque
         data class Copy(val rule: TailscaleForwardRule) : Request
     }
 
-    private val binding = DesignSettingsCommonBinding.inflate(context.layoutInflater, context.root, false)
+    private val binding = DesignTailnetBinding.inflate(context.layoutInflater, context.root, false)
     override val root: View get() = binding.root
     private val rules = preferenceScreen(context) {}
     private lateinit var statusRow: ClickablePreference
-    private lateinit var addRow: ClickablePreference
+    private lateinit var emptyRow: ClickablePreference
     private var current = TailscaleStatus()
     private var rendered: TailscaleStatus? = null
     private var editor: DialogPortForwardBinding? = null
@@ -40,15 +41,24 @@ class PortForwardingDesign(context: Context) : Design<PortForwardingDesign.Reque
         binding.surface = surface
         binding.activityBarLayout.applyFrom(context)
         binding.scrollRoot.bindAppBarElevation(binding.activityBarLayout)
+        binding.primaryAction.apply {
+            visibility = View.VISIBLE
+            setText(R.string.port_forward_add_action)
+            contentDescription = context.getString(R.string.port_forward_add)
+            setOnClickListener { editRule(null) }
+        }
         val screen = preferenceScreen(context) {
             statusRow = clickable(R.string.tailscale, summary = R.string.port_forward_start_vpn) {
                 clicked { requests.trySend(Request.Configure) }
             }
-            addRow = clickable(R.string.port_forward_add, icon = R.drawable.ic_baseline_add,
-                summary = R.string.port_forward_scope) {
-                clicked { editRule(null) }
+            emptyRow = clickable(R.string.port_forward_empty, summary = R.string.port_forward_empty_hint) {
+                view.isClickable = false
+                view.isFocusable = false
             }
             root.addView(rules.root)
+            root.addView(ViewTailnetNoteBinding.inflate(context.layoutInflater, root, false).apply {
+                noteView.setText(R.string.port_forward_scope)
+            }.root)
         }
         binding.content.addView(screen.root)
     }
@@ -56,7 +66,9 @@ class PortForwardingDesign(context: Context) : Design<PortForwardingDesign.Reque
     fun update(status: TailscaleStatus) {
         current = status
         statusRow.view.visibility = if (!status.enabled || status.state != "Running") View.VISIBLE else View.GONE
-        addRow.enabled = status.forwards.size < 32
+        statusRow.summary = context.getString(status.connectionState())
+        binding.primaryAction.isEnabled = status.forwards.size < 32
+        emptyRow.view.visibility = if (status.forwards.isEmpty()) View.VISIBLE else View.GONE
         val previous = rendered
         if (previous != null && previous.forwards == status.forwards &&
             previous.forwardStatus == status.forwardStatus && previous.ips == status.ips &&
@@ -69,7 +81,7 @@ class PortForwardingDesign(context: Context) : Design<PortForwardingDesign.Reque
             val live = status.forwardStatus.firstOrNull { it.id == rule.id }
             val problem = when {
                 !rule.enabled -> ""
-                !status.enabled || status.state != "Running" -> context.getString(R.string.port_forward_waiting)
+                !status.enabled || status.state != "Running" -> ""
                 live?.error?.isNotBlank() == true -> live.error
                 live?.listening != true -> context.getString(R.string.port_forward_not_listening)
                 else -> ""

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 class TailscaleActivity : BaseActivity<TailscaleDesign>() {
     private val json = Json { ignoreUnknownKeys = true }
     private var pendingLogin = false
+    private var refreshQueued = false
 
     private suspend fun command(command: String, content: String = ""): TailscaleStatus =
         json.decodeFromString(TailscaleStatus.serializer(), withClash { tailscaleCommand(command, content) })
@@ -31,17 +32,20 @@ class TailscaleActivity : BaseActivity<TailscaleDesign>() {
         launch {
             while (isActive) {
                 delay(1500)
-                if (activityStarted) design.requests.trySend(TailscaleDesign.Request.Refresh)
+                if (activityStarted && !refreshQueued) refreshQueued = design.requests.trySend(TailscaleDesign.Request.Refresh).isSuccess
             }
         }
         while (isActive) {
             select<Unit> {
                 events.onReceive { }
                 design.requests.onReceive { request ->
+                    if (request == TailscaleDesign.Request.Refresh) refreshQueued = false
                     try {
                         when (request) {
                             is TailscaleDesign.Request.Save -> {
-                                status = command("settings", json.encodeToString(TailscaleSettings.serializer(), request.settings))
+                                status = command("status")
+                                status = command("settings", json.encodeToString(TailscaleSettings.serializer(),
+                                    TailscaleSettings(request.enabled, status.acceptRoutes)))
                                 if (!status.enabled) pendingLogin = false
                             }
                             TailscaleDesign.Request.Login -> {
@@ -70,6 +74,7 @@ class TailscaleActivity : BaseActivity<TailscaleDesign>() {
                             TailscaleDesign.Request.Refresh -> status = command("status")
                             TailscaleDesign.Request.Taildrop -> startActivity(Intent(this@TailscaleActivity, TaildropActivity::class.java))
                             TailscaleDesign.Request.PortForwarding -> startActivity(Intent(this@TailscaleActivity, PortForwardingActivity::class.java))
+                            TailscaleDesign.Request.SubnetRoutes -> startActivity(Intent(this@TailscaleActivity, SubnetRoutesActivity::class.java))
                         }
                         design.update(status)
                         if (status.error.isNotEmpty()) pendingLogin = false
@@ -84,6 +89,7 @@ class TailscaleActivity : BaseActivity<TailscaleDesign>() {
                         throw e
                     } catch (e: Exception) {
                         pendingLogin = false
+                        design.update(status)
                         design.showToast(e.message ?: "Tailscale", ToastDuration.Long)
                     }
                 }

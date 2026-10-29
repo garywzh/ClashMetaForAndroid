@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="@dimen/item_min_height" android:gravity="center_vertical"
+        android:paddingVertical="@dimen/item_padding_vertical"
+        android:paddingStart="@{@dimen/item_header_component_size + @dimen/item_header_margin * 2}"
+        android:paddingEnd="@dimen/item_tailing_margin" android:orientation="horizontal"
+        android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/title_view" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body1" />
+            <TextView android:id="@+id/summary_view" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/item_text_margin" android:visibility="gone"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2" />
+        </LinearLayout>
+        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:importantForAccessibility="no"
+            android:layout_marginStart="@dimen/item_midden_margin" android:src="@drawable/ic_baseline_chevron_right"
+            app:tint="?android:attr/textColorSecondary" />
+    </LinearLayout>
+</layout>

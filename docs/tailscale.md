@@ -16,6 +16,12 @@ process; the standalone Tailscale app does not need to run alongside it.
    `8022` expose a local SSH server as `<tailnet-ip>:2222`. The target is always
    `127.0.0.1`; the local service must listen on IPv4 loopback or all interfaces.
 
+The Tailscale overview groups the enable switch, connection state and copyable
+addresses under **Connection**, and links to **File Transfer**, **Subnet Routes**
+and **Port Forwarding** under **Features**. Login appears only when needed;
+logout and usage notes are in the overflow menu. Subpages show connection notices
+only when unavailable. There is no separate Tailscale VPN lifecycle.
+
 ## Port forwarding
 
 - Add, edit, enable, disable or delete rules in **Settings > Tailscale > Port
@@ -24,7 +30,7 @@ process; the standalone Tailscale app does not need to run alongside it.
   from 1 to 65535. Different rules may point to the same local port.
 - Tap a rule to edit it. Its switch controls only that rule; the copy button
   copies `<tailnet-ip>:<tailnet-port>` (with brackets for IPv6), without guessing
-  a protocol or path. The Tailscale address row always copies the device IP.
+  a protocol or path. The overview's address copy button copies the device IP.
 - This is transparent TCP forwarding, not an MCP server, HTTP proxy or UDP
   forwarder. For MCP, an ordinary `8080 → 8080` rule allows clients to use
   `http://<tailnet-ip>:8080/mcp`; other TCP protocols work without special handling.
@@ -55,7 +61,7 @@ this implementation. Existing per-app VPN access controls still apply.
    `192.168.31.0/24` from a device on your home network).
 2. Approve its routes in the Tailscale admin console, or via your Tailnet's
    auto-approvers. Ensure ACLs/grants allow this phone to access the destination.
-3. Enable **Settings > Tailscale > Accept Subnet Routes** in CMFA. This is off
+3. Open **Settings > Tailscale > Subnet Routes** and enable **Accept Subnet Routes**. This is off
    by default, including for installations upgrading from the initial integration.
 4. Keep Clash in **Rule** mode. **Accepted Subnets** shows the control-plane
    routes used by CMFA. You can now access e.g. `192.168.31.10` without installing
@@ -89,14 +95,14 @@ this implementation. Existing per-app VPN access controls still apply.
 
 ## Taildrop
 
-Open **Settings > Tailscale > Taildrop** while the VPN is running and the node is
+Open **Settings > Tailscale > File Transfer** while the VPN is running and the node is
 logged in. The backend uses Tailscale's Taildrop PeerAPI, not an unrelated file
 server. The pinned MetaCubeX fork omits the implementation; CMFA ports the
 matching upstream v1.102.3 module without replacing its network adaptations.
 
-- **Send files** opens Android's document picker, then asks for an online
+- **Send** in the toolbar opens Android's document picker, then asks for an online
   receiving device. Other apps can also share one or multiple content-URI files
-  to **Taildrop** using Android's share sheet. Bytes stream through owned file
+  to **File Transfer** using Android's share sheet. Bytes stream through owned file
   descriptors, not JSON or a whole-file memory buffer. There are two concurrent
   outgoing/export workers, at most 32 outstanding files and 100 recent results.
   If the queue fills, unsent selections remain on the page for retry.
@@ -123,7 +129,10 @@ matching upstream v1.102.3 module without replacing its network adaptations.
   original and expose **Retry saving to Downloads**. Android 9 and earlier use
   the manual SAF **Save as** fallback instead.
 - Taildrop uses one file list without separate transfer/inbox sections or duplicate
-  completed Downloads jobs. Tap a saved file for **Open**, **Save as**, **Share**
+  completed Downloads jobs, ordered by awaiting approval, active and finished.
+  Refresh and clearing finished transfer records are in the overflow menu;
+  clearing records does not delete saved files. The save directory appears once
+  for the page, not on every row. Tap a saved file for **Open**, **Save as**, **Share**
   and **Delete**, including with the VPN stopped. Unsaved/failed files open their
   appropriate actions on tap. Delete removes the actual download;
   Save as is optional, not a required second step. Saved files use durable

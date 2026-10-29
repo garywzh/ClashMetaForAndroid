@@ -96,7 +96,8 @@ class TaildropActivity : BaseActivity<TaildropDesign>() {
                                 }
                             }
                             TaildropDesign.Request.Refresh -> refreshQueued = false
-                            TaildropDesign.Request.Configure -> startActivity(Intent(this@TaildropActivity, TailscaleActivity::class.java))
+                            TaildropDesign.Request.Configure -> startActivity(Intent(this@TaildropActivity, TailscaleActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                             TaildropDesign.Request.Dismiss -> checkResult(command("dismiss"))
                             is TaildropDesign.Request.TransferActions -> {
                                 if (chooseFileAction(request.transfer.name, listOf(R.string.taildrop_cancel_transfer)) != null) {

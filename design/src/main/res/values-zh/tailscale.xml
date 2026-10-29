@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="tailscale_connection">连接</string>
+    <string name="tailscale_features">功能</string>
+    <string name="tailscale_usage">使用说明</string>
+    <string name="tailscale_copy_address">复制 Tailnet 地址</string>
+    <string name="tailscale_file_transfer">文件传输</string>
+    <string name="tailscale_routes">子网路由</string>
+    <string name="tailscale_routes_count">已开启 · %1$d 个子网</string>
+    <string name="tailscale_routes_error">路由异常</string>
+    <string name="tailscale_routes_off">子网路由已关闭</string>
+    <string name="port_forward_empty">暂无转发规则</string>
+    <string name="port_forward_empty_hint">点击右上角“添加”，向 Tailnet 开放本机 TCP 服务。</string>
+    <string name="port_forward_enabled_count">%1$d 条已启用</string>
+    <string name="port_forward_add_action">添加</string>
+    <string name="taildrop_send_action">发送</string>
+    <string name="taildrop_file_saved">已保存</string>
+    <string name="taildrop_storage_location">保存位置：Download/Taildrop</string>
     <string name="tailscale">Tailscale</string>
     <string name="tailscale_enable">启用 Tailscale</string>
     <string name="tailscale_status">连接状态</string>
