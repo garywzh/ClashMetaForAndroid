@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlin.reflect.KMutableProperty0
 
 interface SwitchPreference : Preference {
+    var checked: Boolean
     var icon: Drawable?
     var title: CharSequence?
     var summary: CharSequence?
@@ -30,6 +31,11 @@ fun PreferenceScreen.switch(
         .inflate(context.layoutInflater, root, false)
 
     val impl = object : SwitchPreference {
+        override var checked: Boolean
+            get() = binding.switchView.isChecked
+            set(value) {
+                binding.switchView.isChecked = value
+            }
         override val view: View
             get() = binding.root
         override var icon: Drawable?

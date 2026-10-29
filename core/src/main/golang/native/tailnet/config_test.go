@@ -169,6 +169,9 @@ func TestProfileReloadKeepsServerAndProxyReferences(t *testing.T) {
 		if cfg.Proxies[Name] != placeholder || cfg.Proxies[Name].Type() != C.Tailscale {
 			t.Fatal("attachment broke proxy references or retained the direct placeholder")
 		}
+		if _, ok := cfg.Rules[0].(*subnetRule); !ok {
+			t.Fatal("live subnet rule must precede subscription rules after each reload")
+		}
 		cfg.Proxies[Name].Close()
 		if manager.server != server {
 			t.Fatal("profile lifecycle replaced the server")

@@ -9,6 +9,7 @@ import android.os.Build
 import com.github.kr328.clash.common.compat.pendingIntentFlags
 import com.github.kr328.clash.common.constants.Components
 import com.github.kr328.clash.common.log.Log
+import com.github.kr328.clash.core.Clash
 import com.github.kr328.clash.service.clash.clashRuntime
 import com.github.kr328.clash.service.clash.module.*
 import com.github.kr328.clash.service.model.AccessControlMode
@@ -43,7 +44,12 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
         install(SuspendModule(self))
 
         try {
-            tun.open()
+            val routing = Clash.queryTailscaleRouting()
+            val initialRoutes = if (routing.enabled && routing.acceptRoutes) routing.subnetRoutes else emptyList()
+            tun.open(initialRoutes)
+            val tailnetRoutes = if (store.bypassPrivateNetwork) {
+                install(TailscaleRouteModule(self, initialRoutes))
+            } else null
 
             // Profile loading can eagerly start tsnet; socket protection must exist first.
             val config = install(ConfigurationModule(self))
@@ -64,6 +70,14 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
                         }
 
                         false
+                    }
+                    if (tailnetRoutes != null) {
+                        tailnetRoutes.onEvent { routes ->
+                            // Android VPN routes are immutable. Replace the TUN to
+                            // capture newly accepted private subnets, retaining tsnet.
+                            tun.open(routes)
+                            false
+                        }
                     }
                 }
 
@@ -122,7 +136,7 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
         runtime.requestGc()
     }
 
-    private fun TunModule.open() {
+    private fun TunModule.open(subnetRoutes: List<String>) {
         val store = ServiceStore(self)
 
         val device = with(Builder()) {
@@ -147,6 +161,11 @@ class TunService : VpnService(), CoroutineScope by CoroutineScope(Dispatchers.De
                 addRoute(TUN_DNS, 32)
                 if (store.allowIpv6) {
                     addRoute(TUN_DNS6, 128)
+                }
+                subnetRoutes.map(::parseCIDR).forEach {
+                    if (store.allowIpv6 || !it.ip.contains(':')) {
+                        addRoute(it.ip, it.prefix)
+                    }
                 }
             } else {
                 addRoute(NET_ANY, 0)

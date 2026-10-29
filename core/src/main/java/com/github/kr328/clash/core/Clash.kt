@@ -18,6 +18,9 @@ object Clash {
     fun tailscaleCommand(command: String, content: String = ""): String =
         Bridge.nativeTailscaleCommand(command, content)
 
+    fun queryTailscaleRouting(): TailscaleStatus =
+        Json.decodeFromString(TailscaleStatus.serializer(), tailscaleCommand("routes"))
+
     enum class OverrideSlot {
         Persist, Session
     }

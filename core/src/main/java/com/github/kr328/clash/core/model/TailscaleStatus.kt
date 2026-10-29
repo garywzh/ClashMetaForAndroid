@@ -6,13 +6,16 @@ import kotlinx.serialization.Serializable
 data class TailscaleStatus(
     val enabled: Boolean = false,
     val mcpEnabled: Boolean = false,
+    val acceptRoutes: Boolean = false,
     val state: String = "Stopped",
     val authUrl: String = "",
     val ips: List<String> = emptyList(),
     val health: List<String> = emptyList(),
+    val subnetRoutes: List<String> = emptyList(),
+    val subnetError: String = "",
     val mcpListening: Boolean = false,
     val error: String = "",
 )
 
 @Serializable
-data class TailscaleSettings(val enabled: Boolean, val mcpEnabled: Boolean)
+data class TailscaleSettings(val enabled: Boolean, val mcpEnabled: Boolean, val acceptRoutes: Boolean = false)

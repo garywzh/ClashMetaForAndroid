@@ -6,6 +6,7 @@ import (
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/common/orderedmap"
 	"github.com/metacubex/mihomo/config"
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/dns"
 )
 
@@ -64,6 +65,9 @@ func Attach(cfg *config.Config) error {
 	// Adapter lifetimes belong to profiles; the underlying server belongs to the VPN.
 	// Keep the wrapper identity: proxy groups/providers also hold references to it.
 	proxy.ProxyAdapter = newOutbound()
+	// A live rule reads the current snapshot; route changes need no profile
+	// reload and always precede subscription LAN/DIRECT rules.
+	cfg.Rules = append([]C.Rule{&subnetRule{}}, cfg.Rules...)
 	return nil
 }
 

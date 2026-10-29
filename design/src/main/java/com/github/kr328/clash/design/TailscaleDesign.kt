@@ -26,6 +26,10 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
 
     private var enabled = initial.enabled
     private var mcpEnabled = initial.mcpEnabled
+    private var acceptRoutes = initial.acceptRoutes
+    private lateinit var enabledSwitch: SwitchPreference
+    private lateinit var routesSwitch: SwitchPreference
+    private lateinit var routesRow: ClickablePreference
     private lateinit var statusRow: ClickablePreference
     private lateinit var addressRow: ClickablePreference
     private lateinit var loginRow: ClickablePreference
@@ -37,7 +41,7 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
         binding.activityBarLayout.applyFrom(context)
         binding.scrollRoot.bindAppBarElevation(binding.activityBarLayout)
         val screen = preferenceScreen(context) {
-            switch(value = ::enabled, title = R.string.tailscale_enable) {
+            enabledSwitch = switch(value = ::enabled, title = R.string.tailscale_enable) {
                 listener = OnChangedListener { save() }
             }
             statusRow = clickable(title = R.string.tailscale_status) {
@@ -53,6 +57,21 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
             logoutRow = clickable(title = R.string.tailscale_logout) {
                 clicked { requests.trySend(Request.Logout) }
             }
+            routesSwitch = switch(
+                value = ::acceptRoutes,
+                title = R.string.tailscale_accept_routes,
+                summary = R.string.tailscale_accept_routes_summary,
+            ) {
+                listener = OnChangedListener { save() }
+            }
+            routesRow = clickable(title = R.string.tailscale_subnet_routes) {
+                view.isClickable = false
+                view.isFocusable = false
+            }
+            clickable(title = R.string.tailscale_scope, summary = R.string.tailscale_scope_summary) {
+                view.isClickable = false
+                view.isFocusable = false
+            }
             category(R.string.tailscale_mcp)
             forwardSwitch = switch(
                 value = ::mcpEnabled,
@@ -61,10 +80,6 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
             ) {
                 listener = OnChangedListener { save() }
             }
-            clickable(title = R.string.tailscale_scope, summary = R.string.tailscale_scope_summary) {
-                view.isClickable = false
-                view.isFocusable = false
-            }
         }
         binding.content.addView(screen.root)
         update(initial)
@@ -72,10 +87,17 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
 
     private fun save() {
         forwardSwitch.enabled = enabled
-        requests.trySend(Request.Save(TailscaleSettings(enabled, mcpEnabled)))
+        routesSwitch.enabled = enabled
+        requests.trySend(Request.Save(TailscaleSettings(enabled, mcpEnabled, acceptRoutes)))
     }
 
     fun update(status: TailscaleStatus) {
+        enabled = status.enabled
+        mcpEnabled = status.mcpEnabled
+        acceptRoutes = status.acceptRoutes
+        enabledSwitch.checked = enabled
+        forwardSwitch.checked = mcpEnabled
+        routesSwitch.checked = acceptRoutes
         val state = when {
             !status.enabled -> R.string.tailscale_disabled
             status.state == "Running" -> R.string.tailscale_connected
@@ -96,5 +118,13 @@ class TailscaleDesign(context: Context, initial: TailscaleStatus) : Design<Tails
         loginRow.enabled = status.enabled && status.state != "Stopped" && status.state != "Running"
         logoutRow.enabled = status.enabled && status.state != "Stopped" && status.state != "NoState"
         forwardSwitch.enabled = enabled
+        routesSwitch.enabled = enabled
+        routesRow.summary = when {
+            !enabled || !acceptRoutes -> context.getString(R.string.tailscale_disabled)
+            status.subnetError.isNotBlank() -> status.subnetError
+            status.state != "Running" -> context.getString(state)
+            status.subnetRoutes.isEmpty() -> context.getString(R.string.tailscale_no_subnet_routes)
+            else -> status.subnetRoutes.joinToString("\n")
+        }
     }
 }

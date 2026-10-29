@@ -17,5 +17,9 @@
     <string name="tailscale_mcp_forward">Share Local MCP on Tailnet</string>
     <string name="tailscale_mcp_summary">Tailnet :8080 → 127.0.0.1:8080. Keep Bearer authentication enabled in the MCP app.</string>
     <string name="tailscale_scope">Routing</string>
-    <string name="tailscale_scope_summary">Automatic Tailnet routing and *.ts.net DNS in Rule mode. IPv6 needs the network IPv6 option. Subnet routers and exit nodes are not enabled. This node has its own IP, separate from the Tailscale app.</string>
+    <string name="tailscale_accept_routes">Accept Subnet Routes</string>
+    <string name="tailscale_accept_routes_summary">Access networks advertised by other devices and approved in the admin console. Tailnet routes take priority over overlapping local networks.</string>
+    <string name="tailscale_subnet_routes">Accepted Subnets</string>
+    <string name="tailscale_no_subnet_routes">No approved subnet routes. Check your subnet router and route approval in the admin console.</string>
+    <string name="tailscale_scope_summary">Automatic Tailnet and accepted subnet routing in Rule mode, with *.ts.net DNS. IPv6 needs the network IPv6 option. Exit nodes are not enabled. This node has its own IP, separate from the Tailscale app.</string>
 </resources>

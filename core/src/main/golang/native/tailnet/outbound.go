@@ -22,8 +22,11 @@ func (t *tailnetOutbound) DialContext(ctx context.Context, metadata *C.Metadata)
 	if err := t.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	s, err := currentServer()
+	s, subnets, err := currentTransport()
 	if err != nil {
+		return nil, err
+	}
+	if err = validateSessionDestination(metadata.DstIP, subnets); err != nil {
 		return nil, err
 	}
 	stack, err := s.Netstack(ctx)
@@ -77,18 +80,28 @@ var tailnetIPv4 = netip.MustParsePrefix("100.64.0.0/10")
 var tailnetIPv6 = netip.MustParsePrefix("fd7a:115c:a1e0::/48")
 
 func validateDestination(ip netip.Addr) error {
+	return validateSessionDestination(ip, manager.subnets.Load())
+}
+
+func validateSessionDestination(ip netip.Addr, subnets *subnetSession) error {
 	if tailnetIPv4.Contains(ip.Unmap()) || tailnetIPv6.Contains(ip) {
 		return nil
 	}
-	return errors.New("Tailscale integration only routes Tailnet addresses")
+	if subnets != nil && subnets.contains(ip) {
+		return nil
+	}
+	return errors.New("destination is neither a Tailnet address nor an accepted subnet route")
 }
 
 func (t *tailnetOutbound) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (C.PacketConn, error) {
 	if err := t.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
 	}
-	s, err := currentServer()
+	s, subnets, err := currentTransport()
 	if err != nil {
+		return nil, err
+	}
+	if err = validateSessionDestination(metadata.DstIP, subnets); err != nil {
 		return nil, err
 	}
 	// Wait for authentication before asking tsnet to bind a local Tailnet address.
@@ -104,7 +117,26 @@ func (t *tailnetOutbound) ListenPacketContext(ctx context.Context, metadata *C.M
 	if err != nil {
 		return nil, err
 	}
-	return outbound.NewPacketConn(pc, t), nil
+	return outbound.NewPacketConn(&checkedPacketConn{PacketConn: pc, subnets: subnets}, t), nil
+}
+
+// UDP mappings may be reused for multiple destinations and survive a settings
+// change. Recheck every datagram against the originating server's live routes.
+type checkedPacketConn struct {
+	net.PacketConn
+	subnets *subnetSession
+}
+
+func (c *checkedPacketConn) WriteTo(payload []byte, address net.Addr) (int, error) {
+	udp, ok := address.(*net.UDPAddr)
+	if !ok {
+		return 0, errors.New("expected a UDP destination")
+	}
+	ip := udp.AddrPort().Addr().Unmap()
+	if err := validateSessionDestination(ip, c.subnets); err != nil {
+		return 0, err
+	}
+	return c.PacketConn.WriteTo(payload, address)
 }
 
 type dnsTransport struct{}

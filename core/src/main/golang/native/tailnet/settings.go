@@ -12,8 +12,9 @@ import (
 const Name = "CMFA-Tailscale"
 
 type Settings struct {
-	Enabled    bool `json:"enabled"`
-	MCPEnabled bool `json:"mcpEnabled"`
+	Enabled      bool `json:"enabled"`
+	MCPEnabled   bool `json:"mcpEnabled"`
+	AcceptRoutes bool `json:"acceptRoutes"`
 }
 
 func ReadSettings() (Settings, error) {
